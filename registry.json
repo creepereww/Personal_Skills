@@ -1,8 +1,20 @@
 {
   "_comment": "远程（GitHub）skill 清单。只有元数据，实体按需才落到 store/cache/。",
-  "_version": 1,
+  "_version": 2,
 
   "remote": [
+    {
+      "id": "neat-freak",
+      "repo": "KKKKhazix/khazix-skills",
+      "path": "neat-freak",
+      "branch": "main",
+      "ref": "v3.0",
+      "commit": "2b4a645",
+      "license": "MIT",
+      "cached": true,
+      "disabled": true,
+      "note": "本体在 store/cache/neat-freak（SKILL.md.disabled 停用状态）。本地派生见 store/fork/local-neat-freak-lite-khazix-skills"
+    },
     {
       "_example": true,
       "id": "pdf",
@@ -20,6 +32,7 @@
     "path: 仓库内子路径，整仓即 skill 时写空字符串",
     "commit: 7 位 short SHA，唯一锁定；ref/tag 仅供人读",
     "cached: 本机是否已缓存实体（store/cache/ 不进 Git）",
-    "查更新：path 空 -> git ls-remote；path 非空 -> GitHub API commits?path=&sha="
+    "查更新：path 空 -> git ls-remote；path 非空 -> GitHub API commits?path=&sha=&per_page=1",
+    "本机实际的 git：C:\\Users\\cgw06\\.workbuddy\\binaries\\PortableGit\\versions\\1.2.0\\cmd\\git.exe（不在 PATH 里）"
   ]
 }

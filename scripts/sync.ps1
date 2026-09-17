@@ -1,7 +1,10 @@
 # sync.ps1 —— 多机同步（Git 主干）
-# 用法：
-#   .\sync.ps1                 拉取远端最新 + 刷新本机联接
-#   .\sync.ps1 -Commit "msg"   先提交本机改动再拉取
+# 用法（PowerShell 7）：
+#   pwsh .\sync.ps1                    拉取远端最新 + 刷新本机联接
+#   pwsh .\sync.ps1 -Commit "msg"      先提交本机改动再拉取推送
+#
+# 注意：commit message 中文没问题（存进 git 的是 UTF-8）。
+#       只是在某些工具里捕获 git 输出时会显示成乱码，看起来像坏了，其实是显示问题。
 #
 # 说明：本机 git 不在 PATH 里，脚本优先用 WorkBuddy 自带的 PortableGit。
 

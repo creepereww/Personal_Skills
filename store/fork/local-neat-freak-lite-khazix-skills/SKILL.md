@@ -1,5 +1,5 @@
 ---
-name: local-neat-freak-lite
+name: local-neat-freak-lite-khazix-skills
 description: >
   非代码项目的知识收尾审查——只保留与代码无关的通用检查：记忆毕业、反膨胀红线、
   相对时间清理、文档内链接有效性。适用于知识库类 / 文档类 / 文件整理类项目。
