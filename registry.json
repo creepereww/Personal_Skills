@@ -1,0 +1,25 @@
+{
+  "_comment": "远程（GitHub）skill 清单。只有元数据，实体按需才落到 store/cache/。",
+  "_version": 1,
+
+  "remote": [
+    {
+      "_example": true,
+      "id": "pdf",
+      "repo": "anthropics/skills",
+      "path": "skills/pdf",
+      "branch": "main",
+      "ref": "v1.2.0",
+      "commit": "3f9a1c2",
+      "cached": false
+    }
+  ],
+
+  "notes": [
+    "id: 本地引用名，唯一",
+    "path: 仓库内子路径，整仓即 skill 时写空字符串",
+    "commit: 7 位 short SHA，唯一锁定；ref/tag 仅供人读",
+    "cached: 本机是否已缓存实体（store/cache/ 不进 Git）",
+    "查更新：path 空 -> git ls-remote；path 非空 -> GitHub API commits?path=&sha="
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "_comment": "挂载路由表。clients 是各 agent 的 skills 目录；mode=junction 走目录联接，mode=extraDirs 走原生配置（不建联接）。",
+  "_version": 1,
+
+  "clients": {
+    "workbuddy": {
+      "dir": "%USERPROFILE%\\.workbuddy\\skills",
+      "mode": "junction",
+      "enabled": true,
+      "note": "只扫自己的目录，不认公共位"
+    },
+    "zcode": {
+      "dir": "%USERPROFILE%\\.agents\\skills",
+      "mode": "junction",
+      "enabled": true,
+      "note": "唯一认 ~/.agents/skills 公共位的 agent（黑盒实测确认）。它同时也扫 ~/.zcode/skills"
+    },
+    "opencode": {
+      "dir": "%USERPROFILE%\\.config\\opencode\\skills",
+      "mode": "junction",
+      "enabled": true,
+      "note": "npm 全局 CLI；目录原本不存在，首次 link 会自动创建"
+    },
+    "doubao": {
+      "dir": "%USERPROFILE%\\DoubaoWork\\skills",
+      "mode": "junction",
+      "enabled": true,
+      "note": "豆包工作的技能根目录（黑盒实测确认可识别）"
+    },
+    "qclaw": {
+      "dir": "%USERPROFILE%\\.qclaw\\skills",
+      "mode": "extraDirs",
+      "enabled": false,
+      "config": "%USERPROFILE%\\.qclaw\\openclaw.json",
+      "note": "48 个 skill 先冻结：多数是 QClaw 预置（2026-06-12 一批 34 个），等用户挑出主动装的再纳入"
+    }
+  },
+
+  "defaults": {
+    "clients": ["workbuddy", "zcode", "opencode", "doubao"],
+    "comment": "默认把 store 里全部 skill 挂到这些 client。要裁剪请改 skills 段。"
+  },
+
+  "skills": {
+    "_comment": "放逐个 skill 的例外规则。未列出的走 defaults。例：\"local-pdf-skills\": { \"clients\": [\"workbuddy\"] }"
+  },
+
+  "projects": {
+    "_comment": "项目级规则。绝大多数 skill 不需要在这里出现。match 支持 path_glob / has_file / exclude_glob。",
+    "bindings": []
+  }
+}

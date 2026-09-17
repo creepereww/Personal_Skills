@@ -1,0 +1,11 @@
+# 远程 skill 缓存：能从 GitHub 重拉，不进仓库
+store/cache/
+
+# 本机联接视图：Windows junction 会被 git 当成普通目录，重复提交内容
+_active/
+
+# 提案是临时沟通载体，批准后删除，不留痕
+proposals/
+
+*.tmp
+*.log
