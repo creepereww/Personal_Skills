@@ -23,6 +23,10 @@ if (-not $git) { throw "找不到 git.exe，请先安装 Git 或修正脚本里�
 
 $log = @()
 
+# 中文 commit message 需要显式告诉 git 用 UTF-8，否则会乱码
+& $git -C $root config i18n.commitEncoding utf-8 2>&1 | Out-Null
+& $git -C $root config i18n.logOutputEncoding utf-8 2>&1 | Out-Null
+
 if ($Commit) {
     $r = & $git -C $root add -A 2>&1 | Out-String
     $r2 = & $git -C $root commit -m $Commit 2>&1 | Out-String

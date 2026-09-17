@@ -9,3 +9,7 @@ proposals/
 
 *.tmp
 *.log
+
+# 字节码缓存
+__pycache__/
+*.pyc
