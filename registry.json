@@ -1,19 +1,79 @@
 {
   "_comment": "远程（GitHub）skill 清单。只有元数据，实体按需才落到 store/cache/。",
-  "_version": 2,
-
+  "_version": 3,
   "remote": [
+    {
+      "id": "summarize",
+      "repo": "steipete/summarize",
+      "path": ".agents/skills/summarize",
+      "branch": "main",
+      "license": "MIT",
+      "commit": "e813113",
+      "cached": true,
+      "mount": true,
+      "note": "源头仓库；网上 bjesuiter/skills、HKUDS/nanobot 等均为转载。用 summarize CLI 摘要 URL/文件/YouTube",
+      "pulled_date": "2026-09-18"
+    },
+    {
+      "id": "skill-creator",
+      "repo": "anthropics/skills",
+      "path": "skills/skill-creator",
+      "branch": "main",
+      "license": "Apache-2.0",
+      "commit": "b9e19e6",
+      "cached": true,
+      "mount": true,
+      "note": "Anthropic 官方，用于创建/改进 skill",
+      "pulled_date": "2026-09-18"
+    },
+    {
+      "id": "find-skills",
+      "repo": "vercel-labs/skills",
+      "path": "skills/find-skills",
+      "branch": "main",
+      "license": "MIT",
+      "commit": "773fb2c",
+      "cached": true,
+      "mount": true,
+      "note": "元 skill：帮你找并安装其他 skill",
+      "pulled_date": "2026-09-18"
+    },
+    {
+      "id": "agent-browser",
+      "repo": "vercel-labs/agent-browser",
+      "path": "skill-data/core",
+      "branch": "main",
+      "license": "Apache-2.0",
+      "commit": "f5b0b48",
+      "cached": true,
+      "mount": true,
+      "name_patched": true,
+      "note": "仓库里没有顶层 agent-browser/ 目录，skill 数据都在 skill-data/* 下；core 是最通用的那份。CLI 本体也是这个仓库。上游 frontmatter name 是 core，已改为 agent-browser 以匹配目录名（opencode 强制 name=目录名）；重新 pull 后需重打此补丁",
+      "pulled_date": "2026-09-18"
+    },
+    {
+      "id": "agent-reach",
+      "repo": "Panniantong/agent-reach",
+      "path": "agent_reach/skill",
+      "branch": "main",
+      "license": "MIT",
+      "commit": "a19a171",
+      "cached": true,
+      "mount": true,
+      "note": "多平台联网检索（X/Reddit/YouTube/B站/小红书等），31k stars",
+      "pulled_date": "2026-09-18"
+    },
     {
       "id": "neat-freak",
       "repo": "KKKKhazix/khazix-skills",
       "path": "neat-freak",
       "branch": "main",
       "ref": "v3.0",
-      "commit": "2b4a645",
       "license": "MIT",
+      "commit": "2b4a645",
       "cached": true,
-      "disabled": true,
-      "note": "本体在 store/cache/neat-freak（SKILL.md.disabled 停用状态）。本地派生见 store/fork/local-neat-freak-lite-khazix-skills"
+      "mount": false,
+      "note": "已停用（SKILL.md.disabled），不挂载。本地派生见 store/fork/local-neat-freak-lite-khazix-skills"
     },
     {
       "_example": true,
@@ -26,13 +86,13 @@
       "cached": false
     }
   ],
-
   "notes": [
-    "id: 本地引用名，唯一",
+    "id: 本地引用名，也是 store/cache/ 下的目录名，同时也是挂给 agent 的名字（不带 local- 前缀）",
     "path: 仓库内子路径，整仓即 skill 时写空字符串",
-    "commit: 7 位 short SHA，唯一锁定；ref/tag 仅供人读",
+    "commit: 7 位 short SHA，由 pull.ps1 拉取后回填；留空表示还没拉过",
+    "mount: 是否挂给各 agent；false 表示只缓存不启用",
     "cached: 本机是否已缓存实体（store/cache/ 不进 Git）",
-    "查更新：path 空 -> git ls-remote；path 非空 -> GitHub API commits?path=&sha=&per_page=1",
-    "本机实际的 git：C:\\Users\\cgw06\\.workbuddy\\binaries\\PortableGit\\versions\\1.2.0\\cmd\\git.exe（不在 PATH 里）"
+    "查更新用 check-update：path 空 -> git ls-remote；path 非空 -> GitHub API commits?path=",
+    "未认证 GitHub API 限流 60 次/小时，需要更多设 GITHUB_TOKEN"
   ]
 }

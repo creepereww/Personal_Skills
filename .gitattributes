@@ -1,0 +1,6 @@
+# 跨机器协作时统一换行，避免 checkout 后被 git 判定为整文件改动
+* text=auto eol=lf
+
+# PowerShell 脚本在 Windows 上用 CRLF 更稳
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf

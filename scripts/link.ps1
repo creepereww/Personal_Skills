@@ -36,6 +36,21 @@ foreach ($kind in @("local", "fork")) {
     }
 }
 
+# 远程 skill：registry 里 mount=true 且已缓存的，目录名就是它的 id（不带 local- 前缀）
+$regPath = Join-Path $root "registry.json"
+if (Test-Path $regPath) {
+    $reg = Get-Content $regPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    foreach ($r in $reg.remote) {
+        if ($r.PSObject.Properties['_example'] -and $r._example) { continue }
+        if (-not $r.mount) { continue }
+        if (-not $r.cached) { continue }
+        $d = Join-Path $root "store\cache\$($r.id)"
+        if (Test-Path $d) {
+            $entities += [PSCustomObject]@{ Name = $r.id; Target = $d; Kind = "remote" }
+        }
+    }
+}
+
 $report = @()
 $report += "entities: " + $entities.Count + " (" + (($entities | Group-Object Kind | ForEach-Object { $_.Name + ":" + $_.Count }) -join " ") + ")"
 
