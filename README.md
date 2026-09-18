@@ -20,6 +20,8 @@ scripts/       link / sync
 | 换机器/同步 | `scripts\sync.ps1` |
 | 本机改完要提交 | `scripts\sync.ps1 -Commit "描述"` |
 | 新增/删除 skill 后 | 放进 `store\local\`，再跑 `link.ps1` |
+| 检查 skill 是否合规 | `scripts\audit.ps1` |
+| 拉取远程 skill | `scripts\pull.ps1 -Id <id>` 或 `-All` |
 
 ## 铁律
 
