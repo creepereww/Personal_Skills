@@ -1,15 +1,28 @@
 ---
 name: local-html-kb-maintain
 description: 维护单文件 HTML 装修知识库（如装修知识大全.html，数千行、内嵌 CSS/JS/base64 图片、章节 section id=cXX、折叠块 details/summary、callout 提醒块）的全套操作。四个场景：①增量接入——评审用户粘贴的内容→精简→写入对应章节；②插入新章节并整体重编号（目录/导航/href/data-ch 联动）；③批量结构重构与全文体检；④推荐表批量加列/填值（关键词启发式）。触发：把这段加进 html、插入新章节、重编号、章节搬家、批量改折叠块、推荐表加预算加列、排版错乱、知识库体检。
-version: v0.1
+version: v0.3
 ---
+
+> **改本 skill 时要守的**：
+> 1. 只放**方法**，不放会变的状态（章节顺序、各类计数、体积 → 写文档同目录的 `_文档实况.md`）
+> 2. 不写日期、不写 changelog、不写第一人称复盘
+> 3. 改完跑 `pwsh ~/.skills/scripts/audit.ps1`
+>
+> 这几条**不因为本 skill 还是 `v0.x` 就可以违反**——「完善中」说的是改之前不用问用户，不是内容可以随便写。
 
 # 单文件 HTML 知识库维护
 
 适用于 `装修知识大全.html` 这类单文件知识库：内嵌 CSS/JS/base64 图片、章节为
-`<section class="chapter" id="cXX">`、折叠块为 `<details class="item-fold|sec-fold">` + `<summary>`、
+`<section class="chapter" id="cXX">`、
+折叠块为 `<details class="item-fold|sec-fold|point-group|vc-details|fig-gallery">` + `<summary>`、
 提醒块为 `<div class="callout warn|tip|info|rec-box|err">` + `<div class="ctitle">`、
-推荐表为 `<table class="ctable rec-tbl">`（表头：材料 / 推荐品牌型号 / 规格 / 选用说明 / 核验）。
+推荐表为 `<table class="ctable rec-tbl">`。
+
+> **推荐表的「核验」列已删**，末列现为 `预算（参考）`；残留 `class="rv"` 是历史遗留，新增表别再套。
+
+> **动手前先看文档同目录的 `_文档实况.md`** —— 章节顺序、各类计数、体积这些**会变**的状态放在那儿，
+> 不写进本 skill（skill 只放方法，不放快照）。改完文档记得回去更新它。
 
 **四个场景，先判断用户要干什么**：
 
@@ -202,13 +215,34 @@ conflict = {'warn': {'💡','✅','ℹ️'}, 'tip': {'⚠️','🚨','❌'}, 'in
 3. `node C:\Users\<用户>\.workbuddy\binaries\node\workspace\jsdom_probe.js` —— 真实加载整页捕获 `window.onerror`
    （**必须用 Windows 反斜杠路径**；`/c/...` 含中文会编码损坏报 `SyntaxError`）
 
+## 共用：排版标准（写内容时必须遵守）
+
+判断「用卡片还是用正文」的硬规则：
+
+| 情况 | 用什么 |
+|---|---|
+| **≥2 个并列的同类名词概念**（字典式速查） | 概念卡片：`item-fold` 折叠块，每条 1–3 句纯定义 |
+| **单个复杂概念**（因果、流程、深入讲解） | `h3.sub` 小标题 + 段落正文 |
+| **同一组并列概念** | 必须全组同形式，禁止一半卡片一半文字 |
+| **只有 1 条概念的折叠块** | 不允许单独存在 → 转成 `h3.sub`+段落，或并入相邻同组卡片 |
+| 对比 / 参数 | 表格（必须带 `<colgroup>` 列宽） |
+| 有顺序的步骤 / 清单 | `ol.step-list`，不要塞进 callout |
+| 警告 / 推荐强调 | callout |
+
+例外：该折叠块所属**系列本身全是折叠块且形式统一**时（如 c14 瓦工验收「一~八」检查项、c02 visual-card 系列），单条也可保留。
+
+**callout 类目定语义，图标可带语义化变体，但不得矛盾**：
+`warn`+⚠️（必须避免的错误）· `tip`+💡（技巧/推荐）· `info`+ℹ️（补充说明/清单/索引）· `rec-box`（型号品牌推荐专用）· `err`（硬性禁止，全书仅 1 处）。
+⚠️ `warn` 配 💡/✅、`tip` 配 ⚠️ 属矛盾；callout 要点若已抽入正文 `step-list`，不得再保留重复 callout。
+
 ## 共用：样式词汇表（写入时必须沿用）
 
 | 用途 | 写法 |
 |---|---|
 | 小节标题 | `<h3 class="sub">标题 <span class="new-tag">标签</span></h3>` |
 | 表格 | `<div class="table-wrap"><table class="ctable">…</table></div>` |
-| 推荐表列 class | `class="rn"`(名称/说明) `class="rb"`(品牌) `class="rs"`(规格) `class="rv"`(核验) |
+| 推荐表表头 | 主流（20/28）：`材料（按空间）｜推荐品牌/型号｜规格｜选用说明｜预算（参考）`；简版：`型号/系列｜适用与说明｜预算（参考）` |
+| 推荐表列 class | `class="rn"`(名称/说明) `class="rb"`(品牌) `class="rs"`(规格) `class="rv"`(历史遗留·新增表停用) |
 | 提示框 | `<div class="callout warn\|info\|tip\|rec-box"><div class="ctitle">图标 标题</div><p>…</p></div>` |
 | 徽章 | `<span class="badge ok\|warn\|err\|info">✅ 推荐</span>` |
 | 数据存疑注脚 | `<p class="rec-note">⚠️ 上表为第三方单一实测…</p>` |
@@ -219,3 +253,12 @@ conflict = {'warn': {'💡','✅','ℹ️'}, 'tip': {'⚠️','🚨','❌'}, 'in
 - `match_tag_pair` 里源码写 `rf"<{tag}\\\\b"` 会变字面 `\\\\b` 匹配不到嵌套 `<div>`，源码须写单反斜杠 `\\b`。
 - 章节对调的断言应为 `s1 < e1 <= s2 < e2`，写成 `s2 < e1` 会误判。
 - agent-browser 在本机 daemon 起不来（SIGTERM），超时不要恋战，改用 jsdom 探针。
+- **本机已验证的绝对路径**（脚本里写死，别用 `python` / `node` 裸命令）：
+  Python `C:\Users\cgw06\.workbuddy\binaries\python\versions\3.13.12\python.exe`；
+  Node `C:\Users\cgw06\.workbuddy\binaries\node\versions\22.22.2-3\node.exe`；
+  jsdom 探针 `C:\Users\cgw06\.workbuddy\binaries\node\workspace\jsdom_probe.js`。
+- **TOC / 悬浮按钮脚本必须独占一个 `<script>`**：全文共 3 块 script，目录生成（`cleanTitle`）与折叠开合状态机在同一块内，
+  任一依赖报错就是整块 `ReferenceError`，症状是「目录点不开 / 悬浮按钮无反应 / 整页交互全失效」。
+  改任何 JS 后必须跑 jsdom 探针确认 `window.onerror` 为 0。
+- **本 skill 是 `~/.skills/store/local/local-html-kb-maintain` 的软链接**，改它就等于改实体，不需要复制或重挂载。
+  当前 `v0.x`（完善中）可直接增删；只有升到 `v1.0` 才需要用户点头。
