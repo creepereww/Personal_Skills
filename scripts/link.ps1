@@ -59,8 +59,23 @@ if (Test-Path $regPath) {
     }
 }
 
+# per-skill 例外规则：routing.json 的 skills 段可以指定某个 skill 只挂给哪些 client
+# （未列出 -> 走 defaults.clients；写成空数组 -> 完全不挂）
+$skillClients = @{}
+if ($cfg.PSObject.Properties['skills']) {
+    foreach ($sp in $cfg.skills.PSObject.Properties) {
+        if ($sp.Name.StartsWith('_')) { continue }
+        if ($sp.Value.PSObject.Properties['clients']) {
+            $skillClients[$sp.Name] = @($sp.Value.clients)
+        }
+    }
+}
+
 $report = @()
 $report += "entities: " + $entities.Count + " (" + (($entities | Group-Object Kind | ForEach-Object { $_.Name + ":" + $_.Count }) -join " ") + ")"
+if ($skillClients.Count -gt 0) {
+    $report += "per-skill 例外: " + (($skillClients.Keys | ForEach-Object { $_ + " -> [" + ($skillClients[$_] -join ",") + "]" }) -join "; ")
+}
 if ($skipped.Count -gt 0) {
     $report += "跳过（无 SKILL.md，不算 skill）: " + ($skipped -join ", ")
 }
@@ -106,6 +121,23 @@ foreach ($prop in $cfg.clients.PSObject.Properties) {
 
     foreach ($e in $entities) {
         $link = Join-Path $dir $e.Name
+
+        # routing 里给这个 skill 指定了 client 名单，而当前 client 不在名单里 -> 不挂，已有的顺手摘掉
+        if ($skillClients.ContainsKey($e.Name) -and ($name -notin $skillClients[$e.Name])) {
+            if (Test-Path $link) {
+                $it = Get-Item $link -Force
+                if (($it.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+                    $t2 = $null
+                    try { $t2 = $it.LinkTarget } catch { $t2 = $null }
+                    if ($t2 -and $t2.StartsWith((Join-Path $root "store"), [StringComparison]::OrdinalIgnoreCase)) {
+                        if (-not $DryRun) { Remove-JunctionOnly $link }
+                        $pruned++
+                        $report += ("UNMOUNT  {0,-10} {1}（routing 规定此 client 不挂）" -f $name, $e.Name)
+                    }
+                }
+            }
+            continue
+        }
 
         if (Test-Path $link) {
             $item = Get-Item $link -Force

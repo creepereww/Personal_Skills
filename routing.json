@@ -42,7 +42,11 @@
   },
 
   "skills": {
-    "_comment": "放逐个 skill 的例外规则。未列出的走 defaults。例：\"local-pdf-skills\": { \"clients\": [\"workbuddy\"] }"
+    "_comment": "逐个 skill 的例外规则。未列出的走 defaults.clients；clients 写成空数组 = 完全不挂载。",
+    "local-workbuddy-quirks": {
+      "clients": ["workbuddy"],
+      "why": "内容全是 WorkBuddy 宿主特有的（工具层输出拿不到、安全策略、shim 补丁、沙箱代理、pwsh 里的 git）。其他 agent 没有这些限制，读它纯属噪音甚至误导，所以只挂 WorkBuddy。"
+    }
   },
 
   "projects": {

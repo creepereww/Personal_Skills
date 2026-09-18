@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
 description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时。含一条不可违反的红线：不得直接编辑 store/ 下的文件，发现问题只能写 proposals/。
-version: v1.5
+version: v1.6
 ---
 
 # Skills Hub
@@ -57,6 +57,29 @@ pwsh C:\Users\cgw06\.skills\scripts\sync.ps1 -Commit "msg"   # 提交 + 同步
 ## 用 skill-creator 创建 skill 时
 
 本机用的是派生版 `local-skill-creator-anthropics-skills`（远程原版已停止挂载）。它开头**内置了本机适配说明** —— 落盘位置、命名正则、version 字段、workspace 该放哪、不打包 .skill，照它走就行，这里不重复。
+
+## 内容要分清"跨 agent 通用"还是"某个 agent 专属"
+
+skill 是**一份实体挂给所有 agent** 的（`routing.json` 的 `defaults.clients` 列了 4 个）。所以写之前先问一句：
+**换成另一个 agent 来读，这段还有用吗？**
+
+- **通用**（路径格式、junction 用法、目录位置、机器坐标…）→ 留在 skill 里
+- **只对某个 agent 成立** → **拆出去**单独建 skill，并在 `routing.json` 里把它限制给那个 agent：
+
+```json
+"skills": {
+  "local-workbuddy-quirks": {
+    "clients": ["workbuddy"],
+    "why": "内容全是 WorkBuddy 宿主特有的，别的 agent 读它纯属噪音"
+  }
+}
+```
+
+`link.ps1` 会照这个名单挂载：不在名单里的 client **不挂**；如果之前已经挂过，还会顺手摘掉（输出里显示 `UNMOUNT`）。
+
+**反例（真踩过）**：`local-wgc-machine` 里塞了一半 WorkBuddy 宿主特有的东西（工具层输出拿不到、安全策略、沙箱代理），
+而它挂给 4 个 agent —— ZCode / opencode 读到的全是"WorkBuddy 的毛病"，纯噪音，甚至误导（它们可能根本没这些限制）。
+后来拆成 `local-wgc-machine`（通用）+ `local-workbuddy-quirks`（只挂 WorkBuddy）才算干净。
 
 ## description 长度规范
 
