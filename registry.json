@@ -85,6 +85,18 @@
       "ref": "v1.2.0",
       "commit": "3f9a1c2",
       "cached": false
+    },
+    {
+      "id": "writing-plans",
+      "repo": "obra/superpowers",
+      "path": "skills/writing-plans",
+      "branch": "main",
+      "license": "MIT",
+      "commit": "b36e082",
+      "cached": true,
+      "mount": true,
+      "note": "写实施计划的方法论（来自 superpowers 技能集）",
+      "pulled_date": "2026-09-19"
     }
   ],
   "notes": [
