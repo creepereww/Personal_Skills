@@ -22,8 +22,8 @@
       "license": "Apache-2.0",
       "commit": "b9e19e6",
       "cached": true,
-      "mount": true,
-      "note": "Anthropic 官方，用于创建/改进 skill",
+      "mount": false,
+      "note": "已派生为 store/fork/local-skill-creator-anthropics-skills（加了本机适配段、删了 Claude.ai/Cowork 两节）。原版只作缓存保留，供将来合并参考，不再挂载以免和派生版重复",
       "pulled_date": "2026-09-18"
     },
     {

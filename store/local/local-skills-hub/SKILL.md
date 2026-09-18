@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
 description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。**动手前必读** —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时。含一条不可违反的红线：不得直接编辑 store/ 下的文件，发现问题只能写 proposals/。
-version: v1.3
+version: v1.4
 ---
 
 # Skills Hub
@@ -56,12 +56,7 @@ pwsh C:\Users\cgw06\.skills\scripts\sync.ps1 -Commit "msg"   # 提交 + 同步
 
 ## 用 skill-creator 创建 skill 时
 
-skill-creator（远程 skill）可以带我们走过"草稿 → 测试 → 评估 → 迭代"，但它有几处默认行为要改：
-
-- **workspace 必须放仓库外**：它默认在 skill 旁边建 `<name>-workspace/`，落在 `store/` 里会被当成 skill 挂出去（link.ps1 现在会跳过无 SKILL.md 的目录，但别依赖这个兜底）。放到 `~/.skills-workspaces/<skill>/`。
-- **跳过最后的 packaging 步骤**：我们不需要 `.skill` 文件，靠 Git 同步。
-- **它不写 `version`**：收尾自己补 `version: v1.0`，并确认 `name` 与目录名一致。
-- **它的 description 会写得很长**：照下面的长度规范收一下。
+本机用的是派生版 `local-skill-creator-anthropics-skills`（远程原版已停止挂载）。它开头**内置了本机适配说明** —— 落盘位置、命名正则、version 字段、workspace 该放哪、不打包 .skill，照它走就行，这里不重复。
 
 ## description 长度规范
 
