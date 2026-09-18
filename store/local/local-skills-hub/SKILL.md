@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
 description: 本机全局 skill 仓库（~/.skills）的使用规则。当需要新增/修改/删除 skill、排查 skill 没生效、或要把 skill 同步到其他电脑时使用。含一条不可违反的红线：不得直接编辑 store/ 下的文件。
-version: v1.0
+version: v1.1
 ---
 
 # Skills Hub
@@ -37,6 +37,8 @@ version: v1.0
 
 然后告诉用户"已提交提案，等你确认"，由人批准后才会真正修改。**未经允许直接改 skill 文件 = 违反此 skill。**
 
+**边界的澄清**：这条红线防的是"**任务执行过程中路过某个 skill、发现它不好用就顺手改掉**"——那种情况下用户不在环，改动无据可查。如果用户**明确要求**"帮我建/改一个 skill"（比如调用了 skill-creator），用户在环、也在给反馈，那么直接编辑就是被授权的，不算违规。判断标准只有一个：**用户是否知道并同意这次改动**。
+
 ## 常用操作
 
 ```powershell
@@ -51,6 +53,16 @@ pwsh C:\Users\cgw06\.skills\scripts\sync.ps1 -Commit "msg"   # 提交 + 同步
 1. 在 `store/local/` 建目录 `local-<slug>/`
 2. 写 `SKILL.md`，frontmatter 必须含 `name`（与目录名逐字符一致）、`description`、`version: v1.0`
 3. 跑 `link.ps1` —— 四个 agent 同时就位
+
+## 用 skill-creator 创建 skill 时
+
+skill-creator（远程 skill）可以带我们走过"草稿 → 测试 → 评估 → 迭代"，但它有几处默认行为要改：
+
+- **workspace 必须放仓库外**：它默认在 skill 旁边建 `<name>-workspace/`，落在 `store/` 里会被当成 skill 挂出去（link.ps1 现在会跳过无 SKILL.md 的目录，但别依赖这个兜底）。放到 `~/.skills-workspaces/<skill>/`。
+- **跳过最后的 packaging 步骤**：我们不需要 `.skill` 文件，靠 Git 同步。
+- **它不写 `version`**：收尾自己补 `version: v1.0`，并确认 `name` 与目录名一致。
+- **它的 description 会写得很长**：截到 500 字符左右。描述是所有 skill 共享的上下文预算，QClaw 那边总上限只有 20000 字符。
+- 它的"自动优化 description"依赖 `claude` CLI，**本机没有**，跑不了，靠人工判断。
 
 命名必须匹配 `^[a-z0-9]+(-[a-z0-9]+)*$`（小写字母数字 + 单连字符），**禁止** `@` `.` 大写字母 下划线 连续连字符。opencode 会强制校验，不符合就静默加载失败。
 
