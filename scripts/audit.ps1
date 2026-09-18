@@ -130,5 +130,8 @@ foreach ($r in $rows | Sort-Object Kind, Name) {
     $out += ("{0,-6} {1,-38} {2,-7} {3,5} {4,6}  {5}" -f $r.Kind, $r.Name, $r.Ver, $r.Desc, $r.Lines, $r.Issues)
 }
 $out += ""
-$out += if ($problems -eq 0) { "全部通过 ✅" } else { "有问题的 skill: $problems 个 ⚠️" }
+$out += if ($problems -eq 0) { "全部通过 ✅" } else { "有问题的 skill: $problems 个 ⚠️（真的没问题就 git commit --no-verify）" }
 $out -join "`n"
+
+if ($problems -gt 0) { exit 1 }
+exit 0
