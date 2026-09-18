@@ -1,7 +1,7 @@
 ---
 name: local-workbuddy-quirks
 description: WorkBuddy 这个客户端特有的运行时行为与对策（本 skill 只挂在 WorkBuddy 下）。含 Bash 工具缺 coreutils 的根因与补丁、pwsh 工具输出 100% 拿不回来的绕过方式、被安全策略禁掉的命令、沙箱代理注入，以及"改文件必须回读验证"的纪律。在本客户端里跑 shell / pwsh 命令、遇到 command not found、改完文件要确认落盘时看这里。
-version: v1.0
+version: v0.1
 ---
 
 # WorkBuddy 客户端备忘
