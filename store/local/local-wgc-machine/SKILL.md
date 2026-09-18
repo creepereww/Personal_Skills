@@ -29,7 +29,7 @@ export PATH="/usr/bin:${PATH}"
 export PATH="${PATH}:/cmd"
 ```
 
-原始文件备份在 `~/.skills-backup-2026-09-18/workbuddy-shim/`。
+原始文件备份在 `~/.skills-backup-*/workbuddy-shim/`（按备份日期分目录）。
 
 ⚠️ **WorkBuddy 升级会覆盖这个文件** —— 哪天又出现 `command not found`，照上面重打一次即可。
 
