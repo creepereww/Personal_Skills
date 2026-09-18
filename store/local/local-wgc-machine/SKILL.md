@@ -1,7 +1,7 @@
 ---
 name: local-wgc-machine
 description: 本机 WGC_MACHINE（MECHREVO KUANGSHI）的通用环境信息，对各个 agent 都适用。含路径坐标、MSYS 程序与 Windows 原生程序该用哪种路径格式、junction 目录联接的正确建删方式、四个 agent 各自读哪个 skills 目录、以及已排查确认无需处理的项。在这台机器上写 shell 脚本、建软链接、排查 skill 没生效时看这里。
-version: v2.0
+version: v0.5
 ---
 
 # WGC_MACHINE 环境备忘

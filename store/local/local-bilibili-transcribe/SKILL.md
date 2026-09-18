@@ -1,7 +1,7 @@
 ---
 name: local-bilibili-transcribe
 description: 把 B 站视频转成带时间戳的文字稿并据此整理笔记，无需登录、没有公开字幕也能做（本地 Whisper 语音识别）。当用户发来 bilibili.com 链接或 BV 号，或提到"导出字幕/转写视频/视频转文字/总结视频知识点/视频笔记/提取文稿"时使用；中文技术视频、教程、访谈都适用。用户只给了本地音视频文件要求转写时，也可直接用其中的 transcribe 子命令。
-version: v1.2
+version: v1.0
 ---
 
 # B站视频转文字（无登录）

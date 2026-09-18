@@ -1,7 +1,7 @@
 ---
 name: local-cloud-drive-mcp-onboarding
 description: 给 opencode 或同类 MCP 客户端接入新的网盘/云盘 MCP 时使用。覆盖"查官方有无 → 凭证类型判断 → 官方付费时自建免费路线 → 端点探测 → 登录 → 验证三件套"全流程，含 123云盘站内接口速查、跨平台查重禁忌（不可用 md5）、秒传探测的副作用、分页陷阱与看门狗、长跑搬运的后台进程托管（Job Object 逃逸 / WMI 启动 / 无窗口）。触发词：装个 X 网盘 MCP、接入网盘 MCP、云盘 MCP、自建 MCP 服务端、网盘接口失效、跨盘查重、秒传、搬运进程被杀、后台任务自动停了。
-version: v1.2
+version: v0.2
 ---
 
 # 云盘 MCP 接入流程

@@ -1,7 +1,7 @@
 ---
 name: local-skill-creator-anthropics-skills
 description: 创建新 skill、改进已有 skill、跑评测、优化 description 触发率。Create new skills, modify and improve existing skills, and measure skill performance. 用户说"帮我建个 skill""改一下这个 skill""跑个评测""优化一下触发"时使用。已适配本机 ~/.skills 仓库规范。
-version: v1.0
+version: v0.1
 ---
 
 # Skill Creator（本机适配版）

@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
 description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时。含一条不可违反的红线：不得直接编辑 store/ 下的文件，发现问题只能写 proposals/。
-version: v1.7
+version: v0.7
 ---
 
 # Skills Hub
