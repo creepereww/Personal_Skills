@@ -13,3 +13,7 @@ proposals/
 # 字节码缓存
 __pycache__/
 *.pyc
+
+# skill-creator 之类工具的工作区产物（评测跑批、基准、反馈）
+# 注意：工作区应当放在仓库外，这里是兜底
+*-workspace/

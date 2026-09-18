@@ -26,12 +26,20 @@ function Remove-JunctionOnly($link) {
 }
 
 # 收集 store 里的实体（local = 纯本地，fork = 有上游）
+# 只有含 SKILL.md 的目录才算 skill —— 否则 skill-creator 之类工具留下的
+# <name>-workspace/、evals 中间产物会被误当成 skill 挂给所有 agent
 $entities = @()
+$skipped = @()
 foreach ($kind in @("local", "fork")) {
     $dir = Join-Path $root "store\$kind"
     if (Test-Path $dir) {
         Get-ChildItem $dir -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-            $entities += [PSCustomObject]@{ Name = $_.Name; Target = $_.FullName; Kind = $kind }
+            if (Test-Path (Join-Path $_.FullName "SKILL.md")) {
+                $entities += [PSCustomObject]@{ Name = $_.Name; Target = $_.FullName; Kind = $kind }
+            }
+            else {
+                $skipped += "$kind/$($_.Name)"
+            }
         }
     }
 }
@@ -53,6 +61,9 @@ if (Test-Path $regPath) {
 
 $report = @()
 $report += "entities: " + $entities.Count + " (" + (($entities | Group-Object Kind | ForEach-Object { $_.Name + ":" + $_.Count }) -join " ") + ")"
+if ($skipped.Count -gt 0) {
+    $report += "跳过（无 SKILL.md，不算 skill）: " + ($skipped -join ", ")
+}
 
 foreach ($prop in $cfg.clients.PSObject.Properties) {
     $name = $prop.Name
