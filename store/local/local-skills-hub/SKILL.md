@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
-description: 本机全局 skill 仓库（~/.skills）的使用规则。当需要新增/修改/删除 skill、排查 skill 没生效、或要把 skill 同步到其他电脑时使用。含一条不可违反的红线：不得直接编辑 store/ 下的文件。
-version: v1.2
+description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。**动手前必读** —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时。含一条不可违反的红线：不得直接编辑 store/ 下的文件，发现问题只能写 proposals/。
+version: v1.3
 ---
 
 # Skills Hub
@@ -80,10 +80,23 @@ description 是唯一常驻上下文的字段，所有 skill 共享这笔预算�
 1. **功能性差异** —— 它某一步在本机根本跑不通，必须换实现（不是"建议不合口味"）
 2. **持续冲突** —— 上游更新频繁，且总撞在我们改动的位置
 3. **上游停更** —— 没人维护，改动不会再有合并问题
+4. **强制绑定需求** —— 需要它**无条件**遵守本地约束，而 skill 之间没有依赖机制、靠 description 触发只是概率事件（见下）
 
-只是流程约定不合（比如"它不管 version""它建议写长描述"）**不值得 fork** —— fork 的代价是从此背上游同步债，为这点差异不划算，还会让溯源变脏（以后得先问"这是原版还是改版"）。
+只是流程约定不合（比如"它不管 version""它建议写长描述"）**不值得 fork** —— 代价是从此背上游同步债，还会让溯源变脏。
 
 正确的替代做法：写一个**我们自己的新 skill** 补那个洞，各司其职。
+
+## ⚠️ skill 之间没有"必须读"的机制
+
+这一点必须知道：**A skill 不能要求 B skill 先被加载**。`available_skills` 只给模型看 name + description，要不要真的去读某个 skill 由模型自己判断 —— 是概率，不是保证。
+
+也就是说，用户直接调 `/skill-creator` 时，模型**不一定会**去读本 skill。补救只能靠这三层：
+
+| 层次 | 手段 | 可靠性 |
+|---|---|---|
+| 1 | 在**被调用的那个 skill** 里加一行指针（= 对它做极小派生） | 100%（只要执行它就一定读到） |
+| 2 | 强化本 skill 的 description，把触发场景写全 | 提高概率 |
+| 3 | 写进 agent 的用户级指引文件（ZCode: `~/.zcode/AGENTS.md`、opencode: `~/.config/opencode/AGENTS.md`） | 100%，但仅对该 agent，且 WorkBuddy 没有全局通道（只读项目目录的 CODEBUDDY.md/AGENTS.md） |
 
 - 它的"自动优化 description"依赖 `claude` CLI，**本机没有**，跑不了，靠人工判断。
 
