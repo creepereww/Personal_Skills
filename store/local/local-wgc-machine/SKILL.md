@@ -48,18 +48,30 @@ export PATH="${PATH}:/cmd"
 `~` 在 bash 里展开成 `/c/Users/cgw06`（MSYS 格式）→ 只适合喂 MSYS 程序。
 喂原生程序时写全 Windows 路径，或先 `cd` 过去再执行（cwd 会被传成 Windows 格式）。
 
-## PowerShell 是 7.6.6
+## PowerShell 是 7.6.6，但输出 100% 拿不回来
 
 `C:\Program Files\PowerShell\7\pwsh.exe`（在 PATH 里）。写脚本按 PS7 写：
 
-- `Get-Item` 有 `LinkTarget` / `LinkType`，可以判断联接指向
-- `Set-Content -Encoding UTF8` 默认无 BOM
-- 要 UTF-8 无 BOM 写文件：`[System.IO.File]::WriteAllText($p, $t, (New-Object System.Text.UTF8Encoding($false)))`
+- `Get-Item` 有 `LinkTarget` / `LinkType`，可判断联接指向
+- `Set-Content -Encoding UTF8` 默认无 BOM；要无 BOM 写文件用 `[System.IO.File]::WriteAllText($p, $t, (New-Object System.Text.UTF8Encoding($false)))`
 - **`ConvertFrom-Json` 读 UTF-8 JSON 会乱码报错** → 改用 `python -c "import json; ..."` 解析
-- 输出经常**不回显**：exit code 0 但 stdout 是空的 → 结论一律写文件再用 Read 工具读回来
 - 复制的目标名含中文时，别只看命令回显，要用 `Get-ChildItem` 复核文件真的存在（曾出现"报成功但文件不存在"）
 
-⚠️ 通过某些工具捕获 git 等 native 命令的输出时，中文会显示成乱码，但**存进去的内容是对的**，别以为是损坏了就去改编码。
+### ⚠️ 输出不回显（工具层限制，只能绕过）
+
+实测把各种输出方式都试了一遍：`"裸字符串"`、`Write-Host`、`[Console]::WriteLine`、`Write-Error`、`throw`、直接写 stderr
+—— **全部拿不到**，工具只回 `exit code`。所以：
+
+- **不是编码问题**（`[Console]::OutputEncoding` 是 gb2312，但纯英文输出同样丢失）
+- **profile 也救不了**（工具启动用 `-NoProfile`，实测 profile 不加载）
+- 根因在工具集成层
+
+→ **唯一可行做法：让命令把结果 `Set-Content` 到文件，再用 Read 工具读回来。** 没有更省事的办法。
+
+唯一相关开关是环境变量 `CODEBUDDY_POWERSHELL_USE_PTY`（当前 `=1`，桌面端为支持交互式命令而设）。
+改成 `0` 是否能让输出回来**未经验证**，且可能让 PowerShell 工具本身不好用 —— 非必要别动。
+
+⚠️ 另一个易误判的点：用工具捕获 git 等 native 命令的输出时，中文会显示成乱码，但**存进去的内容是对的**，别去改编码。
 
 ## 被安全策略禁掉的（别试）
 
@@ -70,13 +82,13 @@ export PATH="${PATH}:/cmd"
 
 → 想走回收站删除（`FileSystem::DeleteDirectory` 那个 API）行不通，改用"移出去到备份目录"。
 
-## git 不在 PATH
+## git
 
-```
-C:\Users\cgw06\.workbuddy\binaries\PortableGit\versions\1.2.0\cmd\git.exe
-```
+**Bash 工具里已经能直接用了**（随 Bash 修复一并解决，见上面那条）。直接敲 `git` 即可，但注意参数里的路径要用 `C:/...` 格式（见路径格式节）。
 
-（WorkBuddy 自带的 2.55.0）脚本里用绝对路径。
+**PowerShell 里不可用，且不值得修**：PortableGit 的 `versions\current` 只是个记录版本号的小文件（不是目录），
+PATH 里只能写死 `versions\1.2.0\cmd`，WorkBuddy 升级 PortableGit 后就会失效 —— 为了在 PowerShell 里用 git
+而背上这个长期维护点不划算。真要在 PowerShell 里跑，写绝对路径，或切到 Bash 工具。
 
 ## junction（目录联接）
 
@@ -97,6 +109,14 @@ C:\Users\cgw06\.workbuddy\binaries\PortableGit\versions\1.2.0\cmd\git.exe
 | 豆包工作 | `~/DoubaoWork/skills` | ❌ |
 
 统一入口在 `~/.skills`，详见 local-skills-hub skill。
+
+## 已排查过、确认不用管的
+
+- **长路径**：`LongPathsEnabled=1`，超 260 字符的路径可用
+- **磁盘**：C 盘剩约 70G、D 盘剩约 210G，不缺空间
+- **代理注入**：`HTTP_PROXY`/`HTTPS_PROXY` 指向 `http://127.0.0.1:<port>`（WorkBuddy 的沙箱代理）。
+  它属于沙箱机制，**不要改**；个别直连被它挡时，在 Python 里 `session.trust_env = False` 绕过
+- **用户/系统 PATH**：本身是干净的，WorkBuddy 给 bash 构造的 PATH 才有问题（见开头那条）
 
 ## 环境坐标
 
