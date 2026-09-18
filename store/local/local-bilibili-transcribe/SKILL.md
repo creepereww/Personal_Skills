@@ -1,7 +1,7 @@
 ---
 name: local-bilibili-transcribe
 description: 把 B 站视频转成带时间戳的文字稿并据此整理笔记，无需登录、没有公开字幕也能做（本地 Whisper 语音识别）。当用户发来 bilibili.com 链接或 BV 号，或提到"导出字幕/转写视频/视频转文字/总结视频知识点/视频笔记/提取文稿"时使用；中文技术视频、教程、访谈都适用。用户只给了本地音视频文件要求转写时，也可直接用其中的 transcribe 子命令。
-version: v1.0
+version: v1.1
 ---
 
 # B站视频转文字（无登录）
@@ -36,22 +36,11 @@ python -m pip install faster-whisper imageio-ffmpeg nvidia-cublas-cu12 nvidia-cu
 
 **装依赖务必带清华源 `-i`**：默认 PyPI 源在本机会卡在 imageio-ffmpeg(31MB)/cudnn(747MB) 这类大包上不动（实测 10 分钟零进度，只能 kill）。CUDA 两个包合计约 1.3GB，加源后 20 秒装完。
 
-**注意 `pip install ... | tail` 会失败**：本机 Bash 无 tail/head，管道会 SIGTERM 掉整条命令。
-不要用管道，直接 `python -m pip install ... 2>&1` 重定向即可（长命令挂 run_in_background）。
+**不要给 pip 加管道**（如 `| tail`）：本机 Bash 缺 tail/head，会让整条命令被 SIGTERM。
+直接 `2>&1` 重定向，长命令挂后台。
 
-## 本机 shell 环境（每次都会撞上，先看这个）
-
-```text
-Bash 工具是残缺的 Git Bash：ls / mkdir / tail / head / dirname 全是 command not found，
-且启动时 shell-runtime-bash-env.sh 自身就报 "dirname: command not found"（这行报错可忽略）。
-→ 建目录、列文件、看大小一律用 python -c "import os; ..."，不要试 shell 命令。
-
-PowerShell 工具输出经常不回显：exit code 0 但 Stdout 空（Get-ChildItem 反复踩到）。
-→ 验证文件是否落盘别用 PowerShell，python 列目录最可靠。
-
-cmd /c 被安全策略禁止："cmd.exe cannot be used from the PowerShell tool"。
-→ 不要绕道 cmd 执行。
-```
+> 本机 shell 的坑（Bash 缺命令、PowerShell 不回显、cmd 被禁、pip 管道失败等）统一记在
+> `local-wgc-machine`，本 skill 不重复。
 
 ## 流程
 
@@ -111,8 +100,8 @@ python scripts/bili_transcribe.py all \
 ### ⚠️ 头号陷阱：模型加载成功 ≠ 能推理
 
 ```text
-最容易误判的一次：日志打印 "模型加载成功: cuda/float16 (2s)"，以为 GPU 跑通了，
-结果一开始 encode 就崩 RuntimeError: cublas64_12.dll is not found or cannot be loaded。
+日志打印 "模型加载成功: cuda/float16 (2s)" 不代表 GPU 可用 ——
+一开始 encode 就崩 RuntimeError: cublas64_12.dll is not found or cannot be loaded。
 原因：WhisperModel() 构造时不真正调用 cuBLAS，缺 DLL 要等到推理才暴露。
 
 → 判定 GPU 真的可用的唯一标准是"转出了第一段"，不是"模型加载成功"。
@@ -142,12 +131,8 @@ python scripts/bili_transcribe.py all \
 3. 章节封面帧 URL 是 http://（非 https）+ i0.hdslb.com，直接 urllib 抓会被 403 挡
    → 必须带 headers：User-Agent + Referer: https://www.bilibili.com/
 
-4. ⚠️ 历史 bug（已修，勿回退）：cmd_all 调 cmd_transcribe，而 --out 只注册在 transcribe
-   子命令上 → `all` 必崩 AttributeError: 'Namespace' object has no attribute 'out'。
-   已在 cmd_transcribe 里用 getattr(args, "out", None) 兜底。
-
-5. PowerShell 的 ConvertFrom-Json 读 UTF-8 JSON 会乱码报错 → 用 python json 解析
-   cmd 的 copy 复制中文文件名会"报成功但文件不存在" → 用 PowerShell Copy-Item 并 Get-ChildItem 验证
+4. 脚本里 `--out` 必须在 `transcribe` 和 `all` 两个子命令上都可读：`all` 会转调 `transcribe`，
+   取参数要用 `getattr(args, "out", None)`，否则 `all` 直接崩 AttributeError。
 ```
 
 ### 转写质量：错字必然出现，必须二次校对
@@ -173,4 +158,4 @@ python scripts/bili_transcribe.py all \
 - [ ] 文稿里抽查 2-3 段，确认术语正确（错了就带 `--prompt` 重跑，或在笔记里改对）
 - [ ] 术语已用章节封面帧 / 作者仓库交叉校对，笔记里有"转写勘误"一节
 - [ ] 笔记里的每个命令块对应到具体章节，别把没演示过的命令写进去
-- [ ] 文稿/笔记文件确实落在磁盘上（用 python 列目录看，别信命令回显和 PowerShell）
+- [ ] 文稿/笔记文件确实落在磁盘上（用 python 列目录验证）

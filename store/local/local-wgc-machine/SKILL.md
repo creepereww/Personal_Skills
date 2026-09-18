@@ -1,7 +1,7 @@
 ---
 name: local-wgc-machine
 description: 本机（WGC_MACHINE / MECHREVO KUANGSHI）环境红线与工具用法。在执行 shell 命令、调用 PowerShell/git、创建符号链接之前先看这里，能避开一批必踩的坑。涉及多 agent 的 skill 挂载时也可用。
-version: v1.0
+version: v1.1
 ---
 
 # WGC_MACHINE 环境备忘
@@ -14,6 +14,9 @@ version: v1.0
 
 → **不要用 Bash 做文件操作**。改用 Read / Write / Edit / Glob / Grep 工具，或 `python -c "..."`。
 
+→ **不要给命令加管道**（如 `pip install ... | tail`）：缺 tail/head 会让整条命令被 SIGTERM 掉。
+需要看长输出就 `2>&1` 重定向到文件再读，长命令挂后台。
+
 ## PowerShell 是 7.6.6
 
 `C:\Program Files\PowerShell\7\pwsh.exe`（在 PATH 里）。写脚本按 PS7 写：
@@ -21,6 +24,9 @@ version: v1.0
 - `Get-Item` 有 `LinkTarget` / `LinkType`，可以判断联接指向
 - `Set-Content -Encoding UTF8` 默认无 BOM
 - 要 UTF-8 无 BOM 写文件：`[System.IO.File]::WriteAllText($p, $t, (New-Object System.Text.UTF8Encoding($false)))`
+- **`ConvertFrom-Json` 读 UTF-8 JSON 会乱码报错** → 改用 `python -c "import json; ..."` 解析
+- 输出经常**不回显**：exit code 0 但 stdout 是空的 → 结论一律写文件再用 Read 工具读回来
+- 复制的目标名含中文时，别只看命令回显，要用 `Get-ChildItem` 复核文件真的存在（曾出现"报成功但文件不存在"）
 
 ⚠️ 通过某些工具捕获 git 等 native 命令的输出时，中文会显示成乱码，但**存进去的内容是对的**，别以为是损坏了就去改编码。
 
