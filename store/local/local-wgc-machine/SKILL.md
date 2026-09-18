@@ -1,7 +1,7 @@
 ---
 name: local-wgc-machine
 description: 本机（WGC_MACHINE / MECHREVO KUANGSHI）环境红线与工具用法。在执行 shell 命令、调用 PowerShell/git、创建符号链接之前先看这里，能避开一批必踩的坑。涉及多 agent 的 skill 挂载时也可用。
-version: v1.3
+version: v1.4
 ---
 
 # WGC_MACHINE 环境备忘
@@ -109,6 +109,21 @@ PATH 里只能写死 `versions\1.2.0\cmd`，WorkBuddy 升级 PortableGit 后就�
 | 豆包工作 | `~/DoubaoWork/skills` | ❌ |
 
 统一入口在 `~/.skills`，详见 local-skills-hub skill。
+
+## 改文件必须回读验证
+
+本环境 PowerShell 输出拿不回来（见上），只能"写文件 → 用 Read 读回"。但**别只相信脚本自己打印的成功信息**：
+
+- 脚本里 `print('已改成 X')` 很可能是**硬编码**的，替换实际失败也照样打印成功
+- 实测踩过：`re.subn(r'(?m)^version:\s*\S+', ...)` 返回 **0 次替换**（同一个文件用 `^version:.*` 却能匹配），
+  而 print 是硬编码的 → 差点带着旧版本号提交。
+  更怪的是 `re.findall(r'version:\s*(\S+)')` 也返回空 —— 正则在这种文件上行为不可靠
+
+**规矩**：
+
+1. 改完**必须回读**（`grep -n` / `sed -n '1,5p'` 读出来看），不靠脚本的自我报告
+2. 脚本 print 要打**真实返回值**（比如 `subn` 的替换次数），不要写死结论
+3. 优先用**逐行替换**（`split('\n')` → `startswith` 判断 → 改 → `join`），比正则可控
 
 ## 已排查过、确认不用管的
 
