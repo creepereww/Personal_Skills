@@ -51,6 +51,13 @@ foreach ($t in $targets) {
     $path  = if ($t.PSObject.Properties['path'] -and $t.path) { $t.path } else { "" }
     $cacheDir = Join-Path $root "store\cache\$($t.id)"
 
+    # 退休/停用的条目不再拉取，否则删了缓存会被 -All 又拉回来
+    $retired = ($t.PSObject.Properties['retired'] -and $t.retired) -or ($t.PSObject.Properties['disabled'] -and $t.disabled)
+    if ($retired -and -not $Force) {
+        $log += ("SKIP     {0,-14} retired/disabled，不拉取" -f $t.id)
+        continue
+    }
+
     if ((Test-Path $cacheDir) -and $t.cached -and -not $Force) {
         $log += ("SKIP     {0,-14} 已缓存 (commit {1})" -f $t.id, $t.commit)
         continue
