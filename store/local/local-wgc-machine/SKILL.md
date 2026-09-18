@@ -1,7 +1,7 @@
 ---
 name: local-wgc-machine
 description: 本机（WGC_MACHINE / MECHREVO KUANGSHI）环境红线与工具用法。在执行 shell 命令、调用 PowerShell/git、创建符号链接之前先看这里，能避开一批必踩的坑。涉及多 agent 的 skill 挂载时也可用。
-version: v1.2
+version: v1.3
 ---
 
 # WGC_MACHINE 环境备忘
