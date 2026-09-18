@@ -1,7 +1,7 @@
 ---
 name: local-cloud-drive-mcp-onboarding
 description: 给 opencode 或同类 MCP 客户端接入新的网盘/云盘 MCP 时使用。覆盖"查官方有无 → 凭证类型判断 → 官方付费时自建免费路线 → 端点探测 → 登录 → 验证三件套"全流程，含 123云盘站内接口速查、跨平台查重禁忌（不可用 md5）、秒传探测的副作用、分页陷阱与看门狗、长跑搬运的后台进程托管（Job Object 逃逸 / WMI 启动 / 无窗口）。触发词：装个 X 网盘 MCP、接入网盘 MCP、云盘 MCP、自建 MCP 服务端、网盘接口失效、跨盘查重、秒传、搬运进程被杀、后台任务自动停了。
-version: v1.1
+version: v1.2
 ---
 
 # 云盘 MCP 接入流程
@@ -239,7 +239,7 @@ Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'python*' -and $_.C
 
 ## 8. 本机环境注意
 
-- 本会话的 shell 坑（Bash 缺命令、PowerShell 不回显等）见 `local-wgc-machine`，不在本 skill 重复
+- 本机 shell 环境（Bash 工具状态、MSYS 与原生程序的路径格式差异、PowerShell 注意点）见 `local-wgc-machine`，不在本 skill 重复
 - **CDN 直链下载失败先查代理**：本机常注入 `HTTP_PROXY/HTTPS_PROXY=http://127.0.0.1:<port>`，
   会让 `d.pcs.baidu.com` 等返回 403。可先 `session.trust_env = False` 绕过试试；
   但**绕过仍 403 就是平台侧限制**（如百度 dlink 与 IP 绑定），别在下载上死磕

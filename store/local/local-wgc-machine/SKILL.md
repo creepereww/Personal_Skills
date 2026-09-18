@@ -1,21 +1,52 @@
 ---
 name: local-wgc-machine
 description: 本机（WGC_MACHINE / MECHREVO KUANGSHI）环境红线与工具用法。在执行 shell 命令、调用 PowerShell/git、创建符号链接之前先看这里，能避开一批必踩的坑。涉及多 agent 的 skill 挂载时也可用。
-version: v1.1
+version: v1.2
 ---
 
 # WGC_MACHINE 环境备忘
 
 机型 MECHREVO KUANGSHI Series，用户 `cgw06`，HOME = `C:\Users\cgw06`。
 
-## Bash 工具是残的
+## Bash 工具（已修复，WorkBuddy 升级可能回退）
 
-`ls` / `dirname` / `head` / `tail` / `mkdir` 全部 `command not found`，启动时还会报 `dirname: command not found`（这行可忽略）。
+**修复前症状**：`ls`/`dirname`/`head`/`tail`/`mkdir` 全部 `command not found`，每条命令还多两行 stderr
+（`shell-runtime-bash-env.sh: line 3: dirname: command not found` + `cd: null directory`）。
 
-→ **不要用 Bash 做文件操作**。改用 Read / Write / Edit / Glob / Grep 工具，或 `python -c "..."`。
+**根因**（WorkBuddy 缺陷，不是本机环境问题）：它构造给 bash 的 PATH 只前插了 node/python 目录，
+**漏了 PortableGit 的 coreutils**（`usr/bin`）；而它的初始化脚本
+（`BASH_ENV=<WorkBuddy>\resources\app.asar.unpacked\cli\vendor\shim\shell-runtime-bash-env.sh`）
+第 3 行偏要用 `dirname` 求自身目录 → 此时 PATH 里没有 dirname → 变量为空 →
+后面两个负责补 PATH 的脚本被静默跳过。鸡生蛋，整条链失效。
 
-→ **不要给命令加管道**（如 `pip install ... | tail`）：缺 tail/head 会让整条命令被 SIGTERM 掉。
-需要看长输出就 `2>&1` 重定向到文件再读，长命令挂后台。
+**修法**（改那个 shim 脚本，已做）：
+
+```sh
+# 第 3 行改成 bash 内建，不依赖任何外部命令
+__codebuddy_shell_runtime_dir="${BASH_SOURCE[0]%/*}"
+# 再补两个目录：coreutils 在 usr/bin，git 在 cmd
+export PATH="/usr/bin:${PATH}"
+export PATH="${PATH}:/cmd"
+```
+
+原始文件备份在 `~/.skills-backup-2026-09-18/workbuddy-shim/`。
+
+⚠️ **WorkBuddy 升级会覆盖这个文件** —— 哪天又出现 `command not found`，照上面重打一次即可。
+
+**现在可用**：coreutils 全套（ls / dirname / head / tail / mkdir / cat / grep / sed / find / xargs / sha256sum…）
++ git + python + node，管道正常。
+
+## 路径格式：MSYS 程序 vs Windows 原生程序
+
+环境设了 `MSYS_NO_PATHCONV=1`，**参数不会被自动转换**，所以要分清给谁：
+
+| 程序类型 | 例子 | 该用的路径格式 |
+|---|---|---|
+| MSYS 程序 | `ls` `wc` `cat` `grep` `sha256sum` | `/c/Users/cgw06/...` ✅ |
+| Windows 原生程序 | `git.exe` `python.exe` `node.exe` | `C:/Users/cgw06/...` ✅（给 `/c/...` 会报 `cannot change to '/c/...'`） |
+
+`~` 在 bash 里展开成 `/c/Users/cgw06`（MSYS 格式）→ 只适合喂 MSYS 程序。
+喂原生程序时写全 Windows 路径，或先 `cd` 过去再执行（cwd 会被传成 Windows 格式）。
 
 ## PowerShell 是 7.6.6
 

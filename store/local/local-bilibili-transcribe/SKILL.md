@@ -1,7 +1,7 @@
 ---
 name: local-bilibili-transcribe
 description: 把 B 站视频转成带时间戳的文字稿并据此整理笔记，无需登录、没有公开字幕也能做（本地 Whisper 语音识别）。当用户发来 bilibili.com 链接或 BV 号，或提到"导出字幕/转写视频/视频转文字/总结视频知识点/视频笔记/提取文稿"时使用；中文技术视频、教程、访谈都适用。用户只给了本地音视频文件要求转写时，也可直接用其中的 transcribe 子命令。
-version: v1.1
+version: v1.2
 ---
 
 # B站视频转文字（无登录）
@@ -34,13 +34,10 @@ python -m pip install faster-whisper imageio-ffmpeg nvidia-cublas-cu12 nvidia-cu
 
 `imageio-ffmpeg` 自带 ffmpeg 二进制，不必单独装。脚本只用标准库 `urllib`，**不需要 requests**。
 
-**装依赖务必带清华源 `-i`**：默认 PyPI 源在本机会卡在 imageio-ffmpeg(31MB)/cudnn(747MB) 这类大包上不动（实测 10 分钟零进度，只能 kill）。CUDA 两个包合计约 1.3GB，加源后 20 秒装完。
+**装依赖务必带清华源 `-i`**：默认 PyPI 源在本机会卡在 imageio-ffmpeg(31MB)/cudnn(747MB) 这类大包上不动（实测 10 分钟零进度，只能 kill）。CUDA 两个包合计约 1.3GB，加源后 20 秒装完。长命令挂后台跑。
 
-**不要给 pip 加管道**（如 `| tail`）：本机 Bash 缺 tail/head，会让整条命令被 SIGTERM。
-直接 `2>&1` 重定向，长命令挂后台。
-
-> 本机 shell 的坑（Bash 缺命令、PowerShell 不回显、cmd 被禁、pip 管道失败等）统一记在
-> `local-wgc-machine`，本 skill 不重复。
+> 本机 shell 环境（Bash 工具状态、MSYS 与原生程序的路径格式差异、PowerShell 注意点）
+> 见 `local-wgc-machine`，本 skill 不重复。
 
 ## 流程
 
