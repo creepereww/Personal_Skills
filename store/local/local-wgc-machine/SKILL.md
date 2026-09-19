@@ -81,24 +81,27 @@ WB="/c/Users/cgw06/.workbuddy/binaries/PortableGit/versions/1.2.0/cmd/git.exe"
 | `D:\APP_CLOUD\PortableGit\cmd\git.exe` | 2.49 | 用户自装，**已加入用户 PATH**，日常走它 |
 | `~/.workbuddy/binaries/PortableGit/versions/<ver>/cmd/git.exe` | 2.55 | 宿主自带。版本更新，但**在本环境写不进 remote-tracking ref**，且路径随版本变 ⇒ 别用 |
 
-**⚠️ 在宿主的 Bash 工具里，git 用用户自装的（2.49），别用宿主自带那份**：
+**⚠️ git 在宿主的 Bash 工具里要用用户自装的（2.49）；真实终端用哪个都行**：
 
-宿主自带（`<PortableGit>/versions/1.2.0/...`，2.55）**写不进 remote-tracking ref** ——
+**实测对照**（同一个仓库、同一环境，只有 git 二进制不同）：
+
+| 环境 | 2.55（宿主自带） | 2.49（用户自装） |
+|---|---|---|
+| 用户的 git-bash（真实终端） | ✅ ref 正常落盘 | ✅ 正常 |
+| 宿主的 Bash 工具（AI 在用） | ❌ ref 不落盘 | ✅ 正常 |
+
+→ **2.55 本身没问题**（真实终端里好好的），是「宿主 Bash 工具环境 × 2.55」这个组合不行：
 能连远端、能 fetch、能 push，但 `refs/remotes/origin/*` 不落盘，`git status` 永远 `[gone]`
-（**数据不受影响**，`git ls-remote origin` 可核对）。
+（**数据不受影响**，`git ls-remote origin` 可核对）。`update-ref` 甚至返回 0 却不写。
 
 **已逐个排除、都不是原因**：环境变量（干净 `env -i` 也一样）、`credential.helper`
 （它那份被改成非标准的 `helper-selector`）、`core.fscache`、目录不存在（手动 mkdir 后照样失败）、
 `cmd/` 存根 vs `mingw64/bin` 真身。
-**同一目录、同一环境，只有 git 二进制不同 —— 2.49 正常，2.55 不行，且 `update-ref` 还返回 0。**
 
-⚠️ **尚未验证**：2.55 在**真实终端**（宿主之外）是否也这样。如果那里正常，
-说明这是「宿主工具环境 × 2.55」的交互问题，**不是 git 版本本身的缺陷** ——
-所以**别断言「2.55 有 bug」**（全世界跑 2.55 的人很多，普遍性 bug 不成立）。
-
-**实用结论**：在宿主里就用 2.49。shim 已把 `D:\APP_CLOUD\PortableGit\cmd` 排到 PATH 最前，
+**实用结论**：升级 git **不会因此出问题**（官方发行版在真实终端一切正常）；
+只有在宿主的 Bash 工具里，才需要让 PATH 优先指向 2.49。shim 已这么配，
 并加了 `hash -r`（改 PATH 顺序必须清 bash 的命令 hash 缓存，否则 `command -v git` 仍指向旧的）。
-**自己装的 git 升级后若换了路径，记得同步改 shim。**
+**自装 git 升级后若换了路径，记得同步改 shim。**
 
 SSH 配置在 `~/.ssh/config`（⚠️ **不能写成 `config.txt`**，那样 ssh 不读 —— 真踩过），
 里面让 github.com 走 `ssh.github.com:443`。

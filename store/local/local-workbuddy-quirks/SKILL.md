@@ -36,8 +36,8 @@ export PATH="${PATH}:/cmd"
 ```sh
 # git：优先用用户自装的。宿主自带的 2.55 在**本工具环境**里写不进 remote-tracking ref
 # （fetch/push 后 git status 永远 [gone]），同一仓库换 2.49 就正常。
-# 注：2.55 在真实终端是否也这样尚未验证，因此只当「本环境要用 2.49」的实用补丁，
-#     别断言版本有 bug——全世界跑 2.55 的人很多，普遍性 bug 不成立）
+# 实测：2.55 在用户的 git-bash（真实终端）里**完全正常**，只有在本工具环境里才不行
+#     ⇒ 是「本工具环境 × 2.55」的兼容问题，不是 git 版本缺陷，升级 git 不受影响）
 if [ -d "/d/APP_CLOUD/PortableGit/cmd" ]; then
     case ":${PATH}:" in *:/d/APP_CLOUD/PortableGit/cmd:*) ;; *) export PATH="/d/APP_CLOUD/PortableGit/cmd:${PATH}" ;; esac
 fi
