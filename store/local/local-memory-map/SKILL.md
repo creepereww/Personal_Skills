@@ -1,7 +1,7 @@
 ---
 name: local-memory-map
 description: 本机各 agent 的记忆放在哪、怎么读、能不能统一。含 WorkBuddy 的用户级与项目级记忆位置、云端 profile 缓存、QClaw 的 SQLite 记忆库、ZCode 与 opencode 的 AGENTS.md 全局指引、豆包工作的深层 workspace 路径（含它自己的预置 skill 库）。讲清"记忆无法像 skill 那样用 junction 统一"的原因，以及"稳定知识毕业成 skill"的正确做法。触发：找记忆、记忆在哪、跨 agent 读记忆、同步记忆、合并记忆、用户偏好放哪、项目记忆怎么找。
-version: v0.3
+version: v0.4
 ---
 
 # 记忆地图
@@ -109,6 +109,21 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 3. 装了 **Everything** 就用它 —— 毫秒级，且有 `es.exe` CLI 可脚本调用
    （本机的 Everything 快捷方式指向已失效路径 `D:\APP_COMMON\图吧工具箱202502\...`，要用得重装或补 `es.exe`）
 4. 常规目录搜不到时，**问用户**比继续猜快 —— 他一句"路径在 X"就解决了
+
+### 豆包 `.user_skills` 的自动恢复机制（实测）
+
+在豆包对话里生成的 skill 会**注册进豆包的系统**（「技能・连接器・伙伴」面板可见）。
+**直接删文件夹没用** —— 检测到缺失就从配置源重建（实测 17:22 删、17:22 就回来了）。
+
+**正确删除方式**：豆包工作 → 「技能・连接器・伙伴」面板 → 个人区 → 右键该 skill → **删除**。
+
+**实测案例**（`rainmeter-skin-dev`，豆包在对话里生成的那份）：
+- 面板里它**已关闭**（灰色开关），但**文件夹仍被自动重建**
+- 我们维护的版本（`Local Rainmeter Skin Dev`，junction → `~/.skills/store`）**开启中** ✓
+- → 要在面板里把旧的那个**删除**才算清净（面板右键有「删除」入口）
+
+**junction 实测**：豆包的 `.user_skills` 里放 junction **可用**（面板里 `Local Rainmeter Skin Dev` 正常开启），
+但**曾被展开成实体副本**（原因未明，用的时候留意是否又被物化）。
 
 ## 跨机器同步
 
