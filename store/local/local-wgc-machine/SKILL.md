@@ -1,7 +1,7 @@
 ---
 name: local-wgc-machine
 description: 本机 WGC_MACHINE（MECHREVO KUANGSHI）的通用环境信息，对各个 agent 都适用。含路径坐标、MSYS 程序与 Windows 原生程序该用哪种路径格式、junction 目录联接的正确建删方式、四个 agent 各自读哪个 skills 目录、以及已排查确认无需处理的项。在这台机器上写 shell 脚本、建软链接、排查 skill 没生效时看这里。
-version: v0.8
+version: v0.9
 ---
 
 # WGC_MACHINE 环境备忘
@@ -21,6 +21,10 @@ bash 里设了 `MSYS_NO_PATHCONV=1`，**参数不会被自动转换**，所以�
 | Windows 原生程序 | `git.exe` `python.exe` `node.exe` | `C:/Users/cgw06/...` ✅（给 `/c/...` 会报 `cannot change to '/c/...'`） |
 
 `~` 在 bash 里展开成 `/c/Users/cgw06`（MSYS 格式）→ 只适合喂 MSYS 程序。
+**⚠️ 别用 bash 变量把路径传给 python** —— bash 的 `/c/...` 传过去会变成 `\c\...`，
+python 在 Windows 上把它当"当前盘符根路径" → 会**凭空造出 `C://c//Users//...` 这种垃圾目录树**。
+（真踩过：`SRC = r"$SRC".replace("/", "\\")` 这种拼法，脚本后面报错了，但 `os.makedirs` 已经先执行，
+垃圾留下了。）**正确做法**：路径直接在 python 里写成 `r"C://Users//cgw06//..."`，或从 `os.path.expanduser` 拿。
 **⚠️ 写给别人复制粘贴的命令，一律用正斜杠** —— bash 里 `\U` `\c` `\w` 会被当转义符吃掉，
 `C:\Users\cgw06\...` 会变成 `C:Userscgw06...` 然后报 command not found。
 （自己踩过：给用户一段含反斜杠的命令，他粘进 bash 就废了。）
@@ -127,18 +131,25 @@ D://APP_MAGIC//es.exe     1.1.0.38     已加入用户 PATH
 ```
 
 ```bash
-es -n 20 关键词               # 最多 20 条
-es -p "*\.user_skills\*"    # 按路径匹配
-es -ipc1 -n 5 关键词          # Everything 1.4 要用 IPC 1（新版 es 默认 IPC 2/3）
+es -n 20 关键词              # 最多 20 条
+es /ad 关键词                # 只要文件夹（注意是 /ad，不是 -folder）
+es -p "路径片段" 关键词        # 匹配完整路径
+es -path "C://某目录" 关键词    # 限定在某目录下搜
+es -get-everything-version   # 看它连到的 Everything 版本
+es -json / -csv / -tsv       # 换输出格式
 ```
+
+✅ **实测可用**：es 1.1.0.38 直接兼容 Everything 1.4.1.1026（默认 IPC 就通，`-ipc1` 也行）。
+实测 **~0.5 秒**（含进程启动），中文路径**不乱码**。
+
+⚠️ 参数写错会返回 `Error 6: Unknown switch` —— 比如"只搜文件夹"是 **`/ad`**，没有 `-folder`。
 
 ⚠️ **前提：Everything 的 GUI 客户端必须在跑**
 - 只有 `Services` 会话的进程**不够**（那只是索引服务，不提供 es 要的 IPC）
 - 症状：`Error 8: Everything IPC window was not found`
 - **agent 启动不了它** —— WorkBuddy 禁了 WMI/`Start-Process` 创建进程（防逃逸），**得让用户自己开**
 
-⚠️ **版本**：本机 Everything 是 **1.4.1.1026**，而 es 1.1.0.38 是配 **1.5** 的。
-先试 `-ipc1`；若仍连不上，换旧版 es（1.1.0.30 及更早，GitHub `voidtools/es` 有全部 tag）。
+⚠️ 若哪天连不上，先查 GUI 在不在（见上）；真怀疑版本，GitHub `voidtools/es` 有 1.1.0.30~38 全部 tag 可换。
 
 ## 环境坐标
 
