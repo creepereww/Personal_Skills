@@ -70,17 +70,24 @@ bash 里设了 `MSYS_NO_PATHCONV=1`，**参数不会被自动转换**，所以�
 | `D:\APP_CLOUD\PortableGit\cmd\git.exe` | 2.49 | 用户自装，**已加入用户 PATH**，日常走它 |
 | `~/.workbuddy/binaries/PortableGit/versions/<ver>/cmd/git.exe` | 2.55 | 宿主自带。版本更新，但**在本环境写不进 remote-tracking ref**，且路径随版本变 ⇒ 别用 |
 
-**⚠️ git 必须用用户自装的 2.49，别用宿主自带的 2.55**：
+**⚠️ 在宿主的 Bash 工具里，git 用用户自装的（2.49），别用宿主自带那份**：
 
-2.55 在本环境**写不进 remote-tracking ref** —— 能连远端、能 fetch、能 push，
-但 `refs/remotes/origin/*` 落不了盘，于是 `git status` 永远显示 `[gone]`
-（**数据不受影响**，用 `git ls-remote origin` 可核对）。
-实测对比：**同一个仓库、同一个 shell，只有 git 版本不同 —— 2.49 正常，2.55 不行**。
-⚠️ 别再把这归因成"沙箱限制"，那是错的；换版本就好。
+宿主自带（`<PortableGit>/versions/1.2.0/...`，2.55）**写不进 remote-tracking ref** ——
+能连远端、能 fetch、能 push，但 `refs/remotes/origin/*` 不落盘，`git status` 永远 `[gone]`
+（**数据不受影响**，`git ls-remote origin` 可核对）。
 
-已修：shell 初始化脚本里把 `D:\APP_CLOUD\PortableGit\cmd` 排到 PATH**最前面**，
-并补了一行 `hash -r` —— 后者必须加，否则 bash 的**命令 hash 缓存**会让 `command -v git` 仍指向旧的 2.55
-（PATH 顺序改了却不生效，极易误判成"补丁没用"）。
+**已逐个排除、都不是原因**：环境变量（干净 `env -i` 也一样）、`credential.helper`
+（它那份被改成非标准的 `helper-selector`）、`core.fscache`、目录不存在（手动 mkdir 后照样失败）、
+`cmd/` 存根 vs `mingw64/bin` 真身。
+**同一目录、同一环境，只有 git 二进制不同 —— 2.49 正常，2.55 不行，且 `update-ref` 还返回 0。**
+
+⚠️ **尚未验证**：2.55 在**真实终端**（宿主之外）是否也这样。如果那里正常，
+说明这是「宿主工具环境 × 2.55」的交互问题，**不是 git 版本本身的缺陷** ——
+所以**别断言「2.55 有 bug」**（全世界跑 2.55 的人很多，普遍性 bug 不成立）。
+
+**实用结论**：在宿主里就用 2.49。shim 已把 `D:\APP_CLOUD\PortableGit\cmd` 排到 PATH 最前，
+并加了 `hash -r`（改 PATH 顺序必须清 bash 的命令 hash 缓存，否则 `command -v git` 仍指向旧的）。
+**自己装的 git 升级后若换了路径，记得同步改 shim。**
 
 SSH 配置在 `~/.ssh/config`（⚠️ **不能写成 `config.txt`**，那样 ssh 不读 —— 真踩过），
 里面让 github.com 走 `ssh.github.com:443`。
