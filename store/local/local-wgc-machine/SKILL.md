@@ -1,7 +1,7 @@
 ---
 name: local-wgc-machine
 description: 本机 WGC_MACHINE（MECHREVO KUANGSHI）的通用环境信息，对各个 agent 都适用。含路径坐标、MSYS 程序与 Windows 原生程序该用哪种路径格式、junction 目录联接的正确建删方式、四个 agent 各自读哪个 skills 目录、以及已排查确认无需处理的项。在这台机器上写 shell 脚本、建软链接、排查 skill 没生效时看这里。
-version: v0.7
+version: v0.8
 ---
 
 # WGC_MACHINE 环境备忘
@@ -105,6 +105,40 @@ WB="/c/Users/cgw06/.workbuddy/binaries/PortableGit/versions/1.2.0/cmd/git.exe"
 
 SSH 配置在 `~/.ssh/config`（⚠️ **不能写成 `config.txt`**，那样 ssh 不读 —— 真踩过），
 里面让 github.com 走 `ssh.github.com:443`。
+
+## 找文件：Everything + es（CLI）
+
+**Everything**（本机已装、服务在跑）：
+
+```
+D://APP_HARDWARE//图吧工具箱202502//tools//其他工具//Everything//
+  everything.exe    1.4.1.1026
+  Everything.db     43 MB（索引）
+```
+
+- ✅ 桌面快捷方式：`C://Users//cgw06//Desktop//everything.exe - 快捷方式.lnk` —— 指向上面这个
+- ❌ `D://APP_MAGIC//everything - 快捷方式.lnk` 是**旧的**，指向已失效的 `D://APP_COMMON//...`；
+  **别拿它判断"装没装"**（我曾据此误报"没装"）
+
+**es.exe**（命令行搜索，找文件用它，毫秒级）：
+
+```
+D://APP_MAGIC//es.exe     1.1.0.38     已加入用户 PATH
+```
+
+```bash
+es -n 20 关键词               # 最多 20 条
+es -p "*\.user_skills\*"    # 按路径匹配
+es -ipc1 -n 5 关键词          # Everything 1.4 要用 IPC 1（新版 es 默认 IPC 2/3）
+```
+
+⚠️ **前提：Everything 的 GUI 客户端必须在跑**
+- 只有 `Services` 会话的进程**不够**（那只是索引服务，不提供 es 要的 IPC）
+- 症状：`Error 8: Everything IPC window was not found`
+- **agent 启动不了它** —— WorkBuddy 禁了 WMI/`Start-Process` 创建进程（防逃逸），**得让用户自己开**
+
+⚠️ **版本**：本机 Everything 是 **1.4.1.1026**，而 es 1.1.0.38 是配 **1.5** 的。
+先试 `-ipc1`；若仍连不上，换旧版 es（1.1.0.30 及更早，GitHub `voidtools/es` 有全部 tag）。
 
 ## 环境坐标
 
