@@ -1,7 +1,7 @@
 ---
 name: local-memory-map
 description: 本机各 agent 的记忆放在哪、怎么读、能不能统一。含 WorkBuddy 的用户级与项目级记忆位置、云端 profile 缓存、QClaw 的 SQLite 记忆库、ZCode 与 opencode 的 AGENTS.md 全局指引、豆包工作无记忆机制。讲清"记忆无法像 skill 那样用 junction 统一"的原因，以及"稳定知识毕业成 skill"的正确做法。触发：找记忆、记忆在哪、跨 agent 读记忆、同步记忆、合并记忆、用户偏好放哪、项目记忆怎么找。
-version: v0.1
+version: v0.2
 ---
 
 # 记忆地图
@@ -59,6 +59,37 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 **记忆毕业**：同一主题的教训反复出现到第 3 次，就不是"最近踩的坑"了，而是稳定知识——
 该从记忆里毕业成 skill（详见 `local-neat-freak-lite-khazix-skills`）。
 稳定知识留在记忆里，等于每个 agent 各自持有一份、互不可见、随会话丢失。
+
+## 已落地的机制：用户偏好可以统一
+
+之前说"记忆不能统一"只对了一半 —— **用户偏好这条线已经打通了**，用「一个权威源 + 脚本分发」：
+
+```
+~/.skills/preferences.md            ← 权威源（进 Git、跨机器同步）
+        ↓  scripts/sync-preferences.ps1
+~/.workbuddy/MEMORY.md              ← WorkBuddy 每次会话自动注入
+~/.zcode/AGENTS.md                  ← ZCode 每次会话注入
+~/.config/opencode/AGENTS.md        ← opencode 每次会话注入
+~/DoubaoWork/AGENTS.md              ← 豆包工作（若它认这个约定）
+```
+
+源与目标都用 `<!-- SYNC:BEGIN -->` / `<!-- SYNC:END -->` 包裹，脚本**只替换块内内容，
+不动块外的任何东西** ⇒ 幂等、可反复跑。
+改偏好就改 `preferences.md` 然后跑一次脚本。
+
+**为什么不用链接**：用户级记忆是**单个文件**（不是目录），junction 只对目录生效；
+文件级只能 hardlink/symlink，而 agent 写文件常"先删后建"会破坏链接。
+
+**所以完整的三条通道**：
+
+| 内容 | 载体 | 触达方式 |
+|---|---|---|
+| **稳定知识**（规则/方法/环境坑） | skill | 按需（description 触发，概率） |
+| **用户偏好**（沟通/协作规则） | 用户级 `AGENTS.md` × 4 | **每次会话注入（100%）** |
+| **项目过程**（做了什么/怎么查的） | 各 agent 自己的工作区记忆 | 不统一，也不必 |
+
+注意 WorkBuddy 只有 `~/.workbuddy/MEMORY.md` 这条用户级通道；
+它**读不到项目目录之外的 AGENTS.md**，所以别指望用同一份 AGENTS.md 覆盖它。
 
 ## 跨机器同步
 
