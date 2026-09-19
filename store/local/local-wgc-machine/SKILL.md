@@ -70,6 +70,13 @@ bash 里设了 `MSYS_NO_PATHCONV=1`，**参数不会被自动转换**，所以�
 | `D:\APP_CLOUD\PortableGit\cmd\git.exe` | 2.49 | 用户自装，**已加入用户 PATH**，日常走它 |
 | `~/.workbuddy/binaries/PortableGit/versions/<ver>/cmd/git.exe` | 2.55 | WorkBuddy 自带，更新但**路径随版本变**，不适合进 PATH |
 
+**⚠️ 在 WorkBuddy 的 Bash 工具里跑 `git push` / `git fetch`**：
+`refs/remotes/origin/*` 这个 remote-tracking ref **写完就丢**（目录都建不起来），
+于是 `git status` 显示 `[gone]`、`git branch -vv` 显示上游不存在。
+**数据不受影响** —— push/fetch 本身是成功的，用 `git ls-remote origin` 能核对一致。
+想看到正常的跟踪状态，改用 **git-bash / PowerShell**（走用户自装的 git 2.49，不在沙箱里）。
+手动补 ref（治标）：`mkdir -p .git/refs/remotes/origin && git rev-parse HEAD > .git/refs/remotes/origin/master`
+
 SSH 配置在 `~/.ssh/config`（⚠️ **不能写成 `config.txt`**，那样 ssh 不读 —— 真踩过），
 里面让 github.com 走 `ssh.github.com:443`。
 
