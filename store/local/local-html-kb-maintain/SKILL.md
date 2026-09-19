@@ -1,7 +1,7 @@
 ---
 name: local-html-kb-maintain
 description: 维护单文件 HTML 装修知识库（如装修知识大全.html，数千行、内嵌 CSS/JS/base64 图片、章节 section id=cXX、折叠块 details/summary、callout 提醒块）的全套操作。四个场景：①增量接入——评审用户粘贴的内容→精简→写入对应章节；②插入新章节并整体重编号（目录/导航/href/data-ch 联动）；③批量结构重构与全文体检；④推荐表批量加列/填值（关键词启发式）。触发：把这段加进 html、插入新章节、重编号、章节搬家、批量改折叠块、推荐表加预算加列、排版错乱、知识库体检。
-version: v0.3
+version: v0.4
 ---
 
 > **改本 skill 时要守的**：
@@ -42,15 +42,23 @@ version: v0.3
 4. **改后回读校验**：`assert new in html` 或对比 count 前后差值。
 5. **收尾跑校验三件套**（见文末）。
 
----
+## 可用脚本（优先跑，别手工重做）
 
+详细参数用 `--help` 看，这里只记"什么时候该跑它"：
+
+| 脚本 | 什么时候跑 |
+|---|---|
+| `scripts/probe_kb.py` | **动手前** —— 结构速探：章节 id→行号、details/callout 计数、表格数、new-tag 风格 |
+| `scripts/scan_kb.py` | 改完收尾、排查"排版错乱" —— 8 类结构问题一次体检 |
+| `scripts/check_rec_tbl.py` | 推荐表批量改完 —— 计数核对（表头 / 该列单元格 vs 数据行 / 章节注释） |
+| `scripts/add_water_chapter_renumber.py` | 要插章时 —— 插章 + 后续重编号的参考实现（写死在一次任务上，通用版待做） |
+
+路径可用 bash 的 `/c/...`，脚本自己转。
 ## 场景一：增量接入（评审 → 精简 → 写入）
 
 ### 工作流
 
-1. **摸清结构**（首次）：`grep -n '<section class="chapter" id=' file.html`（章节→行号）、
-   `grep -o 'class="callout [a-z-]*"' | sort | uniq -c`（可用 callout 变体）、
-   `grep -o '<span class="new-tag">[^<]*</span>' | sort -u`（标签风格）。
+1. **摸清结构**（首次）：跑 `python scripts/probe_kb.py <html>` —— 一次给出章节 id→行号、callout 变体、new-tag 风格、表格数。
 2. **检索去重**（每批必做）：`grep -c '<关键词>'` 看内容是否已存在；
    已存在则新章节做深度展开 + 旧条目加交叉引用徽章，不重复堆砌。
 3. **联网核实关键数据**：只核实影响结论的硬数据（国标号、性能分级、壁厚、功耗、价格区间、平台能力），
@@ -132,26 +140,19 @@ io.open(P, 'w', encoding='utf-8').write(s)
 9. **向某章新增内容前先 grep 该章现有卡片**，同名词合并而非并存
    （「骑马抽」曾同时存在于表格行和卡片，且口径打架）。
 
-### 常用校验正则
+### 常用校验正则（临时查一下用）
+
+成批检查请跑 `scripts/scan_kb.py`（8 类一次跑完）。下面几条留着手工抽查单点问题时用：
 
 ```python
 # 空 callout
 re.findall(r'<div class="callout [a-z-]+">\s*<div class="ctitle">[^<]+</div>\s*</div>', html)
-# 空列表
-re.findall(r'<ul>\s*</ul>|<ol[^>]*>\s*</ol>', html)
 # summary 内混入块级内容（排版错乱真因之一）
 [m for m in re.finditer(r'<summary[^>]*>(.*?)</summary>', html, re.S)
    if any(t in m.group(1) for t in ['<table', '<p class="lead"', 'class="callout"', '<ul>'])]
-# summary 后重复标题（旧式折叠结构残留）
-re.findall(r'</summary>\s*<h3 class="sub">[^<]*<span class="new-tag">', html)
 # 断链
 titles = {m.group(1) for m in re.finditer(r'<section class="chapter" id="(c\d+)">', html)}
 [m.group(1) for m in re.finditer(r'href="#(c\d+)"', html) if m.group(1) not in titles]
-# 章号与链接文字不一致
-[(m.group(1), m.group(2)) for m in re.finditer(r'<a href="#(c\d+)"[^>]*>(c\d+)\s', html)
-  if m.group(1) != m.group(2)]
-# 提醒块类目 vs 图标冲突（warn 配 💡/✅、tip 配 ⚠️ 均属矛盾）
-conflict = {'warn': {'💡','✅','ℹ️'}, 'tip': {'⚠️','🚨','❌'}, 'info': {'⚠️','🚨','❌'}}
 ```
 
 ### 折叠块结构标准
@@ -208,7 +209,12 @@ conflict = {'warn': {'💡','✅','ℹ️'}, 'tip': {'⚠️','🚨','❌'}, 'in
 
 ---
 
+
+- **成批核对跑** `python scripts/check_rec_tbl.py <html> --header "预算（参考）"` —— 自动比对表头数、该列单元格数 vs 数据行数、章节注释数 vs 有推荐表的章节数。
 ## 共用：校验三件套
+
+> **结构问题先跑 `scripts/scan_kb.py`**（8 类一次跑完）；下面三件套是内容/JS 层的检查。
+
 
 1. `python _figs/validate_html.py` —— 标签平衡 / 章节顺序唯一 / 内部锚点 / JS 语法
 2. `python _figs/audit_counts.py` —— 折叠块「声明条数 vs 实际卡片数」（HTMLParser 计数）

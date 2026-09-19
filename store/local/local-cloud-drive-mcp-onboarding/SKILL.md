@@ -1,7 +1,7 @@
 ---
 name: local-cloud-drive-mcp-onboarding
 description: 给 opencode 或同类 MCP 客户端接入新的网盘/云盘 MCP 时使用。覆盖"查官方有无 → 凭证类型判断 → 官方付费时自建免费路线 → 端点探测 → 登录 → 验证三件套"全流程，含 123云盘站内接口速查、跨平台查重禁忌（不可用 md5）、秒传探测的副作用、分页陷阱与看门狗、长跑搬运的后台进程托管（Job Object 逃逸 / WMI 启动 / 无窗口）。触发词：装个 X 网盘 MCP、接入网盘 MCP、云盘 MCP、自建 MCP 服务端、网盘接口失效、跨盘查重、秒传、搬运进程被杀、后台任务自动停了。
-version: v0.2
+version: v0.3
 ---
 
 # 云盘 MCP 接入流程
@@ -19,6 +19,13 @@ version: v0.2
 3. **凭证形态 = 可信度信号**：
    - 官方：OAuth 授权页 / clientID+clientSecret，可撤销可限权
    - 第三方：抓 Cookie 或账号密码，风险自担
+
+## 可用脚本
+
+| 脚本 | 什么时候跑 |
+|---|---|
+| `scripts/verify_mcp.py` | 每次改完服务端 —— 验证三件套一次跑完（参数见 `--help`） |
+
 
 ## 1. 自建服务端的固定规范（本项目约定）
 
@@ -116,9 +123,13 @@ print(r.status_code, r.headers.get('content-type'), r.text[:160])
 
 ## 5. 验证三件套（每次改完都要跑）
 
-1. 模块可导入 + 工具注册数正确：`spec.loader.exec_module(m)` → `asyncio.run(m.mcp.list_tools())`
-2. stdio 真实调用一次：管道喂 `initialize` / `notifications/initialized` / `tools/call`
-3. `cd <项目目录> && opencode mcp list` → 各 server `connected`
+**跑 `python scripts/verify_mcp.py <项目目录> --module <服务端模块>`，它一次跑完这三件：**
+
+1. 模块可导入 + 工具注册数正确
+2. stdio 真实调用一次
+3. `opencode mcp list` 里该 server 是 `connected`（没装就跳过）
+
+参数见 `--help`；路径可用 `/c/...`。**退出码恒为 0**，看输出正文判定。
 
 ## 6. 百度 filemanager 接口：参数位置极敏感
 
