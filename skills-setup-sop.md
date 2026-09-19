@@ -69,6 +69,10 @@ git --version
 
 （就是现在已经配好的这台机器）
 
+> ⚠️ **如果 push 时报 `Connection was aborted` / `Failed to connect` / 卡在网页登录**，
+> 说明你的网络到 `github.com:443` 不通（国内常见）。**别在 HTTPS 上耗**，
+> 直接跳到文末「连不上 GitHub 怎么办」，改走 SSH 通道。
+
 **3.1** 打开 PowerShell，逐行执行（把 `<你的仓库地址>` 换成真实地址）：
 
 ```
@@ -197,6 +201,88 @@ pwsh ~/.skills/scripts/link.ps1
 - [ ] 豆包工作看到（如果装了）
 
 ---
+
+## 连不上 GitHub 怎么办（实测有效的三条路）
+
+### 先判断你属于哪种
+
+在任一终端（pwsh / git-bash）里跑：
+
+```
+ssh -T git@github.com
+```
+
+- 回 `Hi <用户名>!` → SSH 已通，直接做「方案 A 的 A6」
+- 回 `Permission denied (publickey)` → 网络通、只是公钥没加，从「A1」开始
+- 卡住 / `Connection timed out` → SSH 也不通，看方案 B 或 C
+
+### 方案 A：改用 SSH（推荐，一次配好永久免密）
+
+**A1. 看有没有现成 key** — `ls ~/.ssh`，有 `id_rsa` + `id_rsa.pub`（或 ed25519 系列）就跳过 A2。
+
+**A2. 没有就生成**（一路回车，密码留空）— `ssh-keygen -t ed25519 -C "你的邮箱"`
+
+**A3. 公钥进剪贴板** — `cat ~/.ssh/id_rsa.pub | clip`
+（key 若是 ed25519，文件名换成 `id_ed25519.pub`。`clip` 是 Windows 自带的复制到剪贴板，省得手选）
+
+**A4. 添加到 GitHub** — 打开 https://github.com/settings/ssh/new → Title 随便写 → Key 框 Ctrl+V → Add SSH key
+
+**A5. 让 GitHub 走能通的通道**（可选，防 22 端口被封）
+文件 `~/.ssh/config`，**注意没有 `.txt` 后缀**（写成 `config.txt` 的话 ssh 根本不读，这是真踩过的坑）。内容：
+
+```
+Host github.com
+User git
+Hostname ssh.github.com
+PreferredAuthentications publickey
+IdentityFile ~/.ssh/id_rsa
+Port 443
+```
+
+**A6. 换地址并推送**：
+
+```
+cd ~/.skills
+git remote set-url origin git@github.com:<用户名>/<仓库名>.git
+git remote -v
+git push -u origin master
+```
+
+成功标志：`* [new branch]  master -> master` + `branch 'master' set up to track`。
+
+### 方案 B：HTTPS + 代理（有代理才用）
+
+先确认代理端口活着（`26561` 换成你自己的）：`curl -x http://127.0.0.1:26561 https://github.com`
+
+能返回内容，再给 git 配上（两行都要）：
+
+```
+git config --global http.proxy http://127.0.0.1:26561
+git config --global https.proxy http://127.0.0.1:26561
+```
+
+不用了就取消：`git config --global --unset http.proxy`（https.proxy 同理）。
+
+### 方案 C：换成 Gitee（最省事）
+
+`gitee.com` 国内直连可用，不需要任何代理。建个私有仓库，把 remote 换掉即可，本手册命令全不变。
+
+### 为什么会这样
+
+实测本机网络：
+
+| 目标 | 结果 |
+|---|---|
+| `github.com:443`（HTTPS 默认走这条） | ❌ 超时 |
+| `github.com:22`（SSH 默认走这条） | ✅ 通 |
+| `ssh.github.com:443`（SSH 备用通道） | ✅ 通 |
+| `gitee.com:443` | ✅ 通 |
+
+注意第 1 行和第 3 行**同样是 443 端口**，一个不通一个通 —— 所以不是"443 被封"，
+而是 **`github.com` 解析到的那个 IP 被阻断**。SSH 有别的可达入口，因此能绕过去。
+
+另外要澄清：**HTTPS 并不必然要求网页登录**。卡住的那个网页是 Git Credential Manager 的 OAuth 流程，
+它自己也要联网所以跟着失败；HTTPS 本来可以直接填 Personal Access Token，不走网页。
 
 ## 常见问题
 
