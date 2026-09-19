@@ -1,65 +1,133 @@
-# 目录结构
+# 皮肤结构与动态生成
 
-## 三层关系
+## 为什么不用静态皮肤
 
-```
-Skins\                      ← 皮肤根（可在设置里改；本机是 Documents\Rainmeter\Skins\）
-└── MySuite\                ← 根配置（root config）
-    ├── @Resources\         ← 套件共享：图片/字体/光标/Lua/脚本
-    ├── Clock\
-    │   └── Clock.ini       ← 一个皮肤
-    └── Net\
-        └── Net.ini         ← 同一根配置下的另一个皮肤，与 Clock 共享 @Resources
-```
+静态皮肤无法适应动态数据（如任务列表长度变化）。需要用脚本动态生成 .ini 文件，根据数据量自动调整窗口大小和内容布局。
 
-## config name（最容易搞错的地方）
+## 核心结构
 
-**config name = 从皮肤根到 ini 的路径**（不含 `Skins\`，也不含文件名）：
+```ini
+[Rainmeter]
+Update=1000
+BackgroundMode=0          ; 透明背景，用 MeterShape 自己画
+DynamicWindowSize=1
+AccurateText=1
 
-| ini 实际路径 | config name |
-|---|---|
-| `Skins\illustro\Clock\Clock.ini` | `illustro\Clock` |
-| `Skins\NotionTodo\NotionTodo.ini` | `NotionTodo` |
+[Variables]
+FontColor=230,230,240,255
+AccentColor=100,180,255,255
+BgColor=20,20,30,210
 
-`!Bang` 命令、配置目录里的皮肤设置，都用 **config name** 指代皮肤。
-
-⚠️ **重命名目录 = 换 config name** → 该皮肤的窗口位置、透明度等设置会丢。
-
-## 变体 vs 独立皮肤
-
-```
-Clock\12HrClock.ini + Clock\24HrClock.ini    → 同一皮肤的两个「变体」（同时只激活一个）
-Clock\Clock.ini     + Net\Net.ini            → 两个「独立皮肤」（各有各的设置）
+; 背景矩形 - 最底层
+[MeterBackground]
+Meter=Shape
+Shape=Rectangle 0,0,{Width},{Height} | Fill Color #BgColor# | StrokeWidth 0
+DynamicVariables=1
 ```
 
-**变体共享设置**；想独立就分目录。
+## 窗口自适应的坑
 
-## 本机现有
+### 坑 1：DynamicWindowSize=1 不收缩窗口
 
-| 目录 | 是什么 |
-|---|---|
-| `illustro\` | Rainmeter 自带示例（Clock / Disk / Network / System / Welcome） |
-| `NotionTodo\` | 自建，**由脚本生成 ini**（见 `project-template.md`） |
-| `@Vault\` | 只有 `Plugins\` —— 第三方插件存放处 |
+**现象**：设置 `DynamicWindowSize=1`，隐藏 meter 后窗口大小不变或只扩大不缩小。
 
-## `@Resources\` 里放什么
+**原因**：DynamicWindowSize 只在 meter 内容变化时自动调整，但隐藏 meter 时收缩不可靠。
 
-- 图片、图标
-- **自定义字体**（Rainmeter 自动加载，`FontFace` 直接写字体名即可）
-- **自定义光标**（配合 `MouseActionCursor`）
-- Lua 脚本（`ScriptFile` 引用）
-- 其他支撑脚本 / 数据
+**解决方案**：用 **MeterShape 自定义背景矩形**，折叠/展开时用 `!SetOption` 动态修改背景高度：
 
-**只在根配置放一份**，子皮肤用 `#@#`（`@Resources` 的简写变量）引用。
+```ini
+; 展开时
+LeftMouseUpAction=[!SetOption MeterBackground Shape "Rectangle 0,0,{Width},{ExpandedHeight} | Fill Color #BgColor# | StrokeWidth 0"]
 
-## 常用内置变量
+; 折叠时
+LeftMouseUpAction=[!SetOption MeterBackground Shape "Rectangle 0,0,{Width},{CollapsedHeight} | Fill Color #BgColor# | StrokeWidth 0"]
+```
 
-| 变量 | 指向 |
-|---|---|
-| `#@#` | 当前根配置的 `@Resources\` |
-| `#SKINSPATH#` | 皮肤根目录 |
-| `#CURRENTPATH#` | 当前 ini 所在目录 |
-| `#CURRENTFILE#` | 当前 ini 文件名 |
-| `#SETTINGSPATH#` | 配置目录（AppData 里那个） |
+**关键**：修改后必须调用 `[!UpdateMeter *][!Redraw]`。
 
-写路径优先用这些，**别硬编码盘符** —— 换机器/换便携版就废了。
+### 坑 2：条件语法不解析
+
+**现象**：在 Text 中写 `[#Collapsed?▼:▲]`，皮肤显示原始文本而不是▼或▲。
+
+**原因**：Rainmeter 的 String meter Text 不支持三元条件表达式。
+
+**解决方案**：用**两个独立的标题 meter 切换显示**：
+
+```ini
+; 展开状态标题（默认显示）
+[MeterTitleExpanded]
+Meter=String
+Text=今日任务  ▼
+LeftMouseUpAction=[!HideMeter MeterTitleExpanded][!ShowMeter MeterTitleCollapsed]...
+
+; 折叠状态标题（默认隐藏）
+[MeterTitleCollapsed]
+Meter=String
+Text=今日任务  ▲
+Hidden=1
+LeftMouseUpAction=[!ShowMeter MeterTitleExpanded][!HideMeter MeterTitleCollapsed]...
+```
+
+### 坑 3：分组控制显示/隐藏
+
+**现象**：需要批量隐藏/显示一组 meter（如所有任务项）。
+
+**解决方案**：用 **Group 属性**分组，然后用 `!HideMeterGroup` / `!ShowMeterGroup` 批量控制：
+
+```ini
+[MeterItem1]
+Group=Content
+
+[MeterItem2]
+Group=Content
+
+; 折叠时隐藏所有内容
+LeftMouseUpAction=[!HideMeterGroup Content]
+
+; 展开时显示所有内容
+LeftMouseUpAction=[!ShowMeterGroup Content]
+```
+
+## 宽度自适应
+
+### 根据最长文本自动计算宽度
+
+不要硬编码宽度，根据数据动态计算：
+
+```powershell
+function Get-TextWidth($text) {
+    $width = 0
+    foreach ($char in $text.ToCharArray()) {
+        if ([int]$char -gt 127) {
+            $width += 15  # 中文字符宽度
+        } else {
+            $width += 9   # 英文字符/数字宽度
+        }
+    }
+    return $width
+}
+
+$maxWidth = ($tasks | ForEach-Object { Get-TextWidth $_ } | Measure-Object -Maximum).Maximum
+$contentWidth = $maxWidth + $checkboxWidth + $padding * 2
+```
+
+## 动态生成皮肤的最佳实践
+
+1. **用 PowerShell 脚本生成**：读取数据 → 解析格式 → 拼接 ini 字符串 → 写入文件
+2. **背景用 MeterShape**：不用 BackgroundMode=1/2/3 的纯色背景，用 Shape 画矩形便于动态改大小
+3. **Y 坐标用变量计算**：每个 meter 的 Y 坐标在生成时计算好，不要用相对 Y=10R（折叠时会错位）
+4. **生成后调用 !Refresh**：脚本最后刷新 Rainmeter 皮肤
+5. **每次全量重新生成**：不要在皮肤中做复杂的动态变量计算，直接重新生成整个 .ini 文件最可靠
+
+## 文件结构
+
+```
+NotionTodo/
+├── NotionTodo.ini      # 皮肤文件（UTF-16 LE，由脚本生成）
+├── todo.txt             # 数据文件（UTF-16 LE）
+├── Generate-Skin.ps1    # 皮肤生成脚本（UTF-8 BOM）
+├── Update-Todo.ps1      # 同步脚本（UTF-8 BOM）
+├── Complete-Todo.ps1    # 完成任务脚本（UTF-8 BOM）
+├── RunHidden.vbs        # VBScript 包装器（ASCII，隐藏窗口）
+└── error.log            # 错误日志
+```

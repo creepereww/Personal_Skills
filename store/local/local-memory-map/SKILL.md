@@ -1,7 +1,7 @@
 ---
 name: local-memory-map
-description: 本机各 agent 的记忆放在哪、怎么读、能不能统一。含 WorkBuddy 的用户级与项目级记忆位置、云端 profile 缓存、QClaw 的 SQLite 记忆库、ZCode 与 opencode 的 AGENTS.md 全局指引、豆包工作无记忆机制。讲清"记忆无法像 skill 那样用 junction 统一"的原因，以及"稳定知识毕业成 skill"的正确做法。触发：找记忆、记忆在哪、跨 agent 读记忆、同步记忆、合并记忆、用户偏好放哪、项目记忆怎么找。
-version: v0.2
+description: 本机各 agent 的记忆放在哪、怎么读、能不能统一。含 WorkBuddy 的用户级与项目级记忆位置、云端 profile 缓存、QClaw 的 SQLite 记忆库、ZCode 与 opencode 的 AGENTS.md 全局指引、豆包工作的深层 workspace 路径（含它自己的预置 skill 库）。讲清"记忆无法像 skill 那样用 junction 统一"的原因，以及"稳定知识毕业成 skill"的正确做法。触发：找记忆、记忆在哪、跨 agent 读记忆、同步记忆、合并记忆、用户偏好放哪、项目记忆怎么找。
+version: v0.3
 ---
 
 # 记忆地图
@@ -29,7 +29,7 @@ skill 已经统一（`~/.skills` + junction，见 `local-skills-hub`），**记�
 | **QClaw** 会话态 | `~/.qclaw/.auto-memory/` | 小 json | ⚠️ 只是会话状态 |
 | **ZCode** | 无独立记忆文件 | — | 只有 `~/.zcode/workspace/default/AGENTS.md`（指引） |
 | **opencode** | 无记忆 | — | 只有 `~/.config/opencode/AGENTS.md`（指引） |
-| **豆包工作** | 无记忆机制 | — | 目录下只有 `chats/` 和 `skills/` |
+| **豆包工作** | `%LOCALAPPDATA%\DoubaoWork\User Data\Default\.doubaowork\agent_mode\workspace\` | 目录（**深达 8 层**） | ⚠️ 里面有自己的 `.skills`（109 个预置）、`.user_skills`（自建）、`.sessions`、`experience`；另外 `~/DoubaoWork/`（浅层那个）只有挂载视图和空的 chats/ |
 
 **WorkBuddy 的项目记忆是分散的**：每个工作区各自一份 `.workbuddy/memory/`，互不可见。
 要找某个项目当时的过程记录，得先定位工作区目录。
@@ -90,6 +90,25 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 
 注意 WorkBuddy 只有 `~/.workbuddy/MEMORY.md` 这条用户级通道；
 它**读不到项目目录之外的 AGENTS.md**，所以别指望用同一份 AGENTS.md 覆盖它。
+
+## ⚠️ 找东西的深度陷阱（真踩过）
+
+有些路径**深达 8 层**，例如豆包的：
+
+```
+%LOCALAPPDATA%\DoubaoWork\User Data\Default\.doubaowork\agent_mode\workspace\.user_skills\
+```
+
+搜文件时 `maxdepth` 给不够就会漏 —— 而且**漏了你不会知道**（结果为空 ≠ 不存在）。
+我曾搜到第 7 层、目标在第 8 层，于是误报"本机没有这个目录"。
+
+**三个做法**：
+
+1. **深度给足**（≥ 10），或干脆不限深度
+2. **优先用文件名特征搜**（比搜目录名容易命中）
+3. 装了 **Everything** 就用它 —— 毫秒级，且有 `es.exe` CLI 可脚本调用
+   （本机的 Everything 快捷方式指向已失效路径 `D:\APP_COMMON\图吧工具箱202502\...`，要用得重装或补 `es.exe`）
+4. 常规目录搜不到时，**问用户**比继续猜快 —— 他一句"路径在 X"就解决了
 
 ## 跨机器同步
 

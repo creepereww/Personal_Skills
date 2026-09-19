@@ -1,79 +1,145 @@
-# 项目模板
+# 完整项目模板：Notion Todo 桌面小组件
 
-## 方式一：手写 ini（适合静态的小皮肤）
-
-`Skins\MySkin\MySkin.ini` —— 最小可跑：
-
-```ini
-[Rainmeter]
-Update=1000
-AccurateText=1
-
-[Metadata]
-Name=MySkin
-Version=1.0
-
-[Variables]
-FontFace=Microsoft YaHei
-FontSize=11
-FontColor=255,255,255,255
-
-[MeasureTime]
-Measure=Time
-Format=%H:%M
-
-[MeterTime]
-Meter=String
-MeasureName=MeasureTime
-FontFace=#FontFace#
-FontSize=#FontSize#
-FontColor=#FontColor#
-AntiAlias=1
-```
-
-要点：
-- `[Metadata]` 对外发布才必需，自己用可省
-- 变量用 `#名字#` 引用
-- 改完**刷新**才生效
-
-## 方式二：脚本生成 ini（推荐 —— 本机 NotionTodo 就是这么做的）
-
-当皮肤要显示**动态数据**（待办、API 结果、日志统计）时，**别手改 ini**：
+## 项目结构
 
 ```
-NotionTodo\
-├── Generate-Skin.ps1     ← 把数据渲染成 NotionTodo.ini
-├── Update-Todo.ps1       ← 取数据（调 API）
-├── Complete-Todo.ps1     ← 处理交互回写
-├── RunHidden.vbs         ← 无窗口启动（避免闪黑框）
-├── NotionTodo.ini        ← 【产物】别手改，会被覆盖
-├── todo.txt              ← 中间数据
-└── error.log             ← Rainmeter 的报错都在这
+NotionTodo/
+├── NotionTodo.ini      # 皮肤文件（UTF-16 LE，由 Generate-Skin.ps1 生成）
+├── todo.txt             # 任务数据文件（UTF-16 LE）
+├── Generate-Skin.ps1    # 皮肤生成脚本（UTF-8 BOM）
+├── Update-Todo.ps1      # 手动同步脚本（UTF-8 BOM）
+├── Complete-Todo.ps1    # 完成/取消完成任务脚本（UTF-8 BOM）
+├── RunHidden.vbs        # VBScript 窗口隐藏包装器（ASCII）
+└── error.log            # 运行日志（自动生成）
 ```
 
-**为什么这么做**（对应 `local-script-first`）：数据每次都在变，手改 ini 不现实；
-脚本把"取数 → 渲染 ini"固化成一次执行，**ini 降级成产物，人只维护脚本**。
+## 数据流
 
-### 五条纪律
+```
+Notion API
+    ↓ (Update-Todo.ps1 拉取)
+todo.txt (UTF-16 LE)
+    ↓ (Generate-Skin.ps1 读取并解析)
+NotionTodo.ini (UTF-16 LE)
+    ↓ (Rainmeter 加载)
+桌面皮肤显示
+```
 
-1. **ini 是产物** —— 在 ini 顶部写一行注释提醒：`; 本文件由 Generate-Skin.ps1 生成，勿手改`（ini 注释用 `;`）
-2. **生成后要刷新** —— 脚本末尾发 `!Refresh`，或提示用户右键 Refresh
-   （`!Refresh` 可以用 `RunCommand` 插件或直接改 ini 后靠用户刷新）
-3. **编码固定 UTF-16 LE + BOM** —— 生成时显式指定（见 `encoding.md`）
-4. **别去写窗口坐标** —— 皮肤位置存在配置目录的 `Rainmeter.ini` 里，不在皮肤 ini 中；
-   脚本重写皮肤 ini 不会影响用户拖好的位置 ✓
-5. **无窗口启动用 `RunHidden.vbs`** —— 直接跑 PS1 会闪黑框
+## 交互流程
 
-### 让 Rainmeter 定时跑生成脚本
+### 点击 checkbox 完成任务
 
-两条路：
-- **皮肤内定时**：`[MeasureRun]` + `RunCommand` 插件，配 `UpdateDivider` 控制频率
-- **外部定时**：Windows 计划任务（更省事，且皮肤刷新不依赖它）
+```
+用户点击 ☐
+    ↓
+wscript.exe RunHidden.vbs → Complete-Todo.ps1
+    ↓
+[第一步：乐观更新] 立即修改本地 todo.txt + 重新生成皮肤 + 刷新 Rainmeter（100-200ms）
+    ↓
+[第二步：后台同步] 调用 Notion API 更新状态 → 重新拉取真实数据 → 确保一致（2-3秒）
+```
 
-推荐**外部定时 + 脚本末尾触发刷新**：职责清楚，皮肤只管显示。
+### 点击手动同步按钮
 
-## 打包分发
+```
+用户点击 🔄 同步
+    ↓
+wscript.exe RunHidden.vbs → Update-Todo.ps1
+    ↓
+调用 Notion API 拉取所有任务
+    ↓
+更新 todo.txt → 重新生成皮肤 → 刷新 Rainmeter
+```
 
-皮肤作为一个**根配置目录**打包（含 `@Resources`）：
-`Rainmeter` 右键托盘图标 → Skins → 打开皮肤文件夹，或官方 `SkinInstaller`（`.rmskin`）。
-自己用的话，直接把目录拷进 `Skins\` 即可。
+## 数据格式（todo.txt）
+
+未完成任务每行一个标题，已完成任务加 `[done]` 前缀：
+
+```
+任务1
+任务2
+[done]任务3
+[done]任务4
+```
+
+## 关键代码片段
+
+### 1. RunHidden.vbs（窗口隐藏包装器）
+
+```vbscript
+Set WshShell = CreateObject("WScript.Shell")
+strCmd = "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & WScript.Arguments(0) & """"
+For i = 1 To WScript.Arguments.Count - 1
+    strCmd = strCmd & " """ & WScript.Arguments(i) & """"
+Next
+WshShell.Run strCmd, 0, False
+```
+
+### 2. Generate-Skin.ps1 核心结构
+
+```powershell
+# 读取 todo.txt（UTF-16 LE）
+$content = [System.IO.File]::ReadAllText($todoFile, [System.Text.Encoding]::Unicode)
+
+# 解析任务
+foreach ($line in $lines) {
+    if ($line -match '^\[done\](.*)$') {
+        $completedTasks += $Matches[1]
+    } else {
+        $pendingTasks += $line
+    }
+}
+
+# 计算宽度和高度
+$maxWidth = ($tasks | ForEach-Object { Get-TextWidth $_ } | Measure-Object -Maximum).Maximum
+$contentWidth = $maxWidth + $padding * 2
+
+# 生成 ini 内容
+$sb = New-Object System.Text.StringBuilder
+[void]$sb.AppendLine("[Rainmeter]")
+# ... 所有 meter 定义 ...
+
+# 写入皮肤文件（UTF-16 LE）
+[System.IO.File]::WriteAllText($skinFile, $sb.ToString(), [System.Text.Encoding]::Unicode)
+```
+
+### 3. Complete-Todo.ps1 乐观更新核心
+
+```powershell
+# 保存参数（避免变量污染）
+$SavedTaskTitle = $TaskTitle
+$SavedTargetState = $TargetState
+
+# 第一步：乐观更新
+# 1. 修改本地 todo.txt
+# 2. 点号引用 Generate-Skin.ps1 重新生成
+. $genScript
+# 3. 异步刷新 Rainmeter
+Start-Process $rainmeterPath -ArgumentList "!Refresh `"NotionTodo`"" -WindowStyle Hidden
+
+# 第二步：后台同步
+# 1. 调用 Notion API 更新状态
+# 2. 重新拉取真实数据
+# 3. 更新本地 todo.txt 和皮肤
+```
+
+## 部署步骤
+
+1. 在 `C:\Users\<用户名>\Documents\Rainmeter\Skins\` 下创建 `NotionTodo` 文件夹
+2. 把所有脚本和文件放进去
+3. 设置环境变量 `NOTION_TOKEN`（用户级）
+4. 在 Notion 中创建 Todo 数据库，授权 Integration 访问
+5. 右键 Rainmeter 托盘图标 → 皮肤 → NotionTodo → 加载
+6. 右键皮肤 → 刷新
+
+## 常见问题排查
+
+| 问题 | 排查步骤 |
+|------|----------|
+| 中文乱码 | 检查皮肤文件编码是否 UTF-16 LE，脚本是否 UTF-8 BOM |
+| 点击无反应 | 查看 error.log，确认 VBScript 路径和参数是否正确 |
+| 点击不刷新 | 确认脚本最后有调用 Rainmeter !Refresh，且用 Start-Process 异步执行 |
+| API 400 错误 | 确认请求体转 UTF-8 字节数组，Content-Type 加 charset=utf-8 |
+| 任务状态同步不上 | 查看 error.log，确认 Token 有效、Integration 已授权数据库 |
+| 窗口大小不对 | 确认用 MeterShape 自定义背景，折叠时 !SetOption 改高度 |
+| 点击弹出黑窗口 | 确认用 wscript.exe RunHidden.vbs 包装，而不是直接 powershell.exe |
