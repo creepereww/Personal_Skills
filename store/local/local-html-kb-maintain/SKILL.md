@@ -51,7 +51,7 @@ version: v0.4
 | `scripts/probe_kb.py` | **动手前** —— 结构速探：章节 id→行号、details/callout 计数、表格数、new-tag 风格 |
 | `scripts/scan_kb.py` | 改完收尾、排查"排版错乱" —— 8 类结构问题一次体检 |
 | `scripts/check_rec_tbl.py` | 推荐表批量改完 —— 计数核对（表头 / 该列单元格 vs 数据行 / 章节注释） |
-| `scripts/add_water_chapter_renumber.py` | 要插章时 —— 插章 + 后续重编号的参考实现（写死在一次任务上，通用版待做） |
+| `scripts/insert_chapter.py` | 要插章时 —— 在指定章后插入并整体重编号（**先 `--dry-run` 看**，它会自动备份、防重跑） |
 
 路径可用 bash 的 `/c/...`，脚本自己转。
 ## 场景一：增量接入（评审 → 精简 → 写入）
