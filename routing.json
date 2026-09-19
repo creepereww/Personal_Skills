@@ -32,7 +32,7 @@
       "mode": "extraDirs",
       "enabled": false,
       "config": "%USERPROFILE%\\.qclaw\\openclaw.json",
-      "note": "48 个 skill 先冻结：多数是 QClaw 预置（2026-06-12 一批 34 个），等用户挑出主动装的再纳入"
+      "note": "不纳入统一管理（用户已决定）：QClaw 那批多是它自己的预置 skill，保留其自带的 extraDirs 配置即可，本项目不接管"
     }
   },
 

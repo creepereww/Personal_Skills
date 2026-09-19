@@ -39,7 +39,7 @@ scripts/       link / sync
 | ZCode | `~/.agents/skills`（公共位） | junction |
 | opencode | `~/.config/opencode/skills` | junction |
 | 豆包工作 | `~/DoubaoWork/skills` | junction |
-| QClaw | `~/.qclaw/skills` | extraDirs 配置（**当前冻结**） |
+| QClaw | `~/.qclaw/skills` | 不纳入（保留它自带的 extraDirs 配置） |
 
 ## 注意
 
