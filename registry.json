@@ -96,8 +96,8 @@
       "license": "MIT",
       "commit": "5bf4e78",
       "cached": true,
-      "mount": true,
-      "note": "动手做创造性工作前，先把想法谈成设计（分类流程深浅 → 探索意图 → 出设计 → 等批准）。来自 superpowers 框架",
+      "mount": false,
+      "note": "已被派生版取代：store/fork/local-plan-first-superpowers（保留三路径分类/只升不降/硬门控/写回理解/红旗清单，砍掉规格文档+视觉伴侣，改中文 95 行）。原版只作上游参考，不挂载，避免与派生版重复触发",
       "pulled_date": "2026-09-19"
     }
   ],

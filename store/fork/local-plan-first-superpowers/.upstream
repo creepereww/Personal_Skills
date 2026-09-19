@@ -1,0 +1,46 @@
+---
+upstream_repo: obra/superpowers
+upstream_path: skills/brainstorming
+upstream_url: https://github.com/obra/superpowers/tree/main/skills/brainstorming
+upstream_license: MIT
+base_commit: 5bf4e78
+base_note: 2026-09-19 pull 时的上游 commit
+forked_date: 2026-09-19
+reason: >-
+  上游原版 285 行、英文、绑代码工程（规格文档路径 docs/superpowers/specs、把设计稿提交到 git、
+  视觉伴侣含 5 个脚本、dot 流程图、TDD 交接）。本机需要的是跨场景通用的轻量版：
+  保留核心机制（三路径分类、只升不降、硬门控、写回理解、红旗清单），砍掉工程包袱并通用化
+  （探路 / 改良 / 新建），改中文、压到 95 行、不上子代理。
+---
+
+# Brainstorming Ideas Into Designs
+
+> **原版全文见 `store/cache/brainstorming/SKILL.md`**（已拉取并登记在 registry，`mount: false`）。
+
+## 上游要点（供将来合并时对照）
+
+**三路径**（原版第 58–88 行）：
+- **Spike** — 可行性问题，输出是答案不是代码；"No design doc, no spec file"，产物标 throwaway
+- **Bounded** — 对**本仓库已有**代码的有界改动；"Understanding the kind of app is not enough —
+  bounded means the flow you are changing is already here to read"；短方案要停下等明确 yes
+- **Architectural** — 新项目/新子系统/改接口；完整流程到写规格 + `writing-plans` 交接
+
+**棘轮**（第 86–88 行）："When in doubt between two paths, take the heavier one.
+The ratchet is one-way: hidden complexity discovered mid-task upgrades the path — stop, say so,
+and step up. Nothing downgrades mid-task."
+
+**硬门控**（第 38–56 行）："A reply approves the stage actually presented. Approval of an idea or
+feature scope does not approve artifacts that do not exist yet. Resume at the earliest incomplete
+stage; do not turn one approval into permission to skip the rest of the selected path.
+Read-only project exploration is allowed while those prerequisites remain incomplete."
+
+**写回理解**（第 25–28 行）："Summarize the intended outcome, relevant constraints, and success
+criteria in a short note your partner can assess. **Separate what they said from assumptions.**
+Invite correction…"
+
+**红旗表**（第 98–108 行，7 条）：核心是"为了省事贴标签本身就是疑点""bounded 衡量的是仓库不是熟悉度"
+"spike 的产出是答案，留代码是新需求""每个任务各有各的分类和批准"。
+
+**本 fork 的取舍**：砍掉 Visual Companion（第 268–285 行 + `scripts/` 6 个文件）、
+规格文档落盘与 git 提交（第 237–266 行）、dot 流程图（第 140–182 行）、
+`elements-of-style` / `writing-plans` 等具体 skill 交接（本机不需要）。
