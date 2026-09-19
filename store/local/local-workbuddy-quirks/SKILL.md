@@ -31,6 +31,22 @@ export PATH="${PATH}:/cmd"
 
 原始文件备份在 `~/.skills-backup-*/workbuddy-shim/`。
 
+**同一处补丁还有两段（git 与命令缓存）**：
+
+```sh
+# git：优先用用户自装的（宿主自带的 2.55 在本环境写不进 remote-tracking ref，
+# 表现为 fetch/push 后 git status 永远 [gone]；同一仓库换 2.49 就正常）
+if [ -d "/d/APP_CLOUD/PortableGit/cmd" ]; then
+    case ":${PATH}:" in *:/d/APP_CLOUD/PortableGit/cmd:*) ;; *) export PATH="/d/APP_CLOUD/PortableGit/cmd:${PATH}" ;; esac
+fi
+# 兜底：宿主自带的 git 在 <PortableGit>/cmd
+case ":${PATH}:" in *:/cmd:*) ;; *) export PATH="${PATH}:/cmd" ;; esac
+
+# 改了 PATH 顺序后**必须**清 bash 的命令 hash 缓存，
+# 否则 command -v / type 仍返回旧路径，看起来像"补丁没生效"
+hash -r 2>/dev/null || true
+```
+
 ⚠️ **WorkBuddy 升级会覆盖这个文件** —— 哪天又出现 `command not found`，照上面重打一次。
 
 ## pwsh 工具：输出 100% 拿不回来
