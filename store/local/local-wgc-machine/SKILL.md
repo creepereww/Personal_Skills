@@ -1,7 +1,7 @@
 ---
 name: local-wgc-machine
 description: 本机 WGC_MACHINE（MECHREVO KUANGSHI）的通用环境信息，对各个 agent 都适用。含路径坐标、MSYS 程序与 Windows 原生程序该用哪种路径格式、junction 目录联接的正确建删方式、四个 agent 各自读哪个 skills 目录、以及已排查确认无需处理的项。在这台机器上写 shell 脚本、建软链接、排查 skill 没生效时看这里。
-version: v0.6
+version: v0.7
 ---
 
 # WGC_MACHINE 环境备忘
@@ -21,6 +21,17 @@ bash 里设了 `MSYS_NO_PATHCONV=1`，**参数不会被自动转换**，所以�
 | Windows 原生程序 | `git.exe` `python.exe` `node.exe` | `C:/Users/cgw06/...` ✅（给 `/c/...` 会报 `cannot change to '/c/...'`） |
 
 `~` 在 bash 里展开成 `/c/Users/cgw06`（MSYS 格式）→ 只适合喂 MSYS 程序。
+**⚠️ 写给别人复制粘贴的命令，一律用正斜杠** —— bash 里 `\U` `\c` `\w` 会被当转义符吃掉，
+`C:\Users\cgw06\...` 会变成 `C:Userscgw06...` 然后报 command not found。
+（自己踩过：给用户一段含反斜杠的命令，他粘进 bash 就废了。）
+要引一个 Windows 程序的路径时，最稳的写法是**存变量再引用**：
+
+```bash
+WB="/c/Users/cgw06/.workbuddy/binaries/PortableGit/versions/1.2.0/cmd/git.exe"
+"$WB" --version
+```
+
+
 喂原生程序时写全 Windows 路径，或先 `cd` 过去再执行（cwd 会被传成 Windows 格式）。
 
 ## junction（目录联接）
