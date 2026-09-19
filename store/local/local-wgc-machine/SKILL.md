@@ -1,7 +1,7 @@
 ---
 name: local-wgc-machine
 description: 本机 WGC_MACHINE（MECHREVO KUANGSHI）的通用环境信息，对各个 agent 都适用。含路径坐标、MSYS 程序与 Windows 原生程序该用哪种路径格式、junction 目录联接的正确建删方式、四个 agent 各自读哪个 skills 目录、以及已排查确认无需处理的项。在这台机器上写 shell 脚本、建软链接、排查 skill 没生效时看这里。
-version: v0.5
+version: v0.6
 ---
 
 # WGC_MACHINE 环境备忘
@@ -42,6 +42,36 @@ bash 里设了 `MSYS_NO_PATHCONV=1`，**参数不会被自动转换**，所以�
 | 豆包工作 | `~/DoubaoWork/skills` | ❌ |
 
 统一入口在 `~/.skills`，详见 `local-skills-hub`。
+
+## 网络（GitHub 相关）
+
+**直连实测**（这台机器 + 当前网络环境）：
+
+| 目标 | 结果 |
+|---|---|
+| `github.com:443` | ❌ 超时 |
+| `github.com:22` | ✅ 通 |
+| `ssh.github.com:443` | ✅ 通 |
+| `gitee.com:443` | ✅ 通 |
+
+→ **GitHub 走 SSH 没问题，HTTPS 直连必挂**（要挂代理）。
+注意第 1 行和第 3 行**同样是 443 端口**却一个不通一个通 —— 是 `github.com` 的**目标 IP 被阻**，不是端口被封。
+
+**代理（两个别搞混）**：
+
+- **系统持久代理**：`127.0.0.1:26561`（注册表 `ProxyEnable=1`，用户自装的）
+- **WorkBuddy 会话内注入**：`HTTP_PROXY`/`HTTPS_PROXY` 指向它自己的沙箱代理，**端口随会话变**，别硬编码
+- 给 git 配代理：`git config --global http.proxy http://127.0.0.1:26561`；不用了 `--unset http.proxy`
+
+**本机两套 git**：
+
+| 位置 | 版本 | 用途 |
+|---|---|---|
+| `D:\APP_CLOUD\PortableGit\cmd\git.exe` | 2.49 | 用户自装，**已加入用户 PATH**，日常走它 |
+| `~/.workbuddy/binaries/PortableGit/versions/<ver>/cmd/git.exe` | 2.55 | WorkBuddy 自带，更新但**路径随版本变**，不适合进 PATH |
+
+SSH 配置在 `~/.ssh/config`（⚠️ **不能写成 `config.txt`**，那样 ssh 不读 —— 真踩过），
+里面让 github.com 走 `ssh.github.com:443`。
 
 ## 环境坐标
 
