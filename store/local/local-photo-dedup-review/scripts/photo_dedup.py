@@ -1,0 +1,272 @@
+# -*- coding: utf-8 -*-
+"""
+照片查重：dHash 指纹库 + RGB/直方图精细比对 + complete-linkage 聚类
+
+用法：
+    python photo_dedup.py --roots "G:\\01_照片" --out "./work"
+    python photo_dedup.py --roots "G:\\01_照片,G:\\02_视频" --out "./work" \\
+        --exclude "05_软件工具,06_学习资料,08_游戏"
+
+产出（都在 --out 目录）：
+    photo_hash.csv   指纹库：path, dhash, w, h, size, std, topdir
+    dup_groups.csv   重复组：group_id, verdict, max_rgb, min_hist, path, size, w, h, action
+
+判定标准（可用参数调）：
+    确认重复：整组两两 rgb128 <= --rgb-max(2.5)  且  直方图相关 >= --hist-min(0.99)
+    否则      ：疑似不同（仅供人工参考，不可据此删除）
+
+设计要点：
+    - 原始尺寸在 resize 之前取，否则记成缩放后的尺寸（典型 bug：全是 9x8）
+    - 信息量门槛（灰度标准差）过滤纯色/近纯色图，它们对 dHash 无意义
+    - 领域过滤：软件/教程目录不该作为候选，排除后误配大幅下降
+    - 先用 dHash 粗筛再精细比对，避免 O(n^2) 的全量像素比对
+    - complete-linkage 聚类，不用单链接（后者会因传递性合并出巨大错误组）
+    - 组 ID 用路径哈希，保证多次运行稳定
+    - 幂等、失败要响（读取失败计入 errors 并落盘）
+    - 退出码：0 正常；1 参数错误；2 有文件读取失败
+"""
+
+import argparse
+import csv
+import hashlib
+import os
+import sys
+from collections import defaultdict
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+from PIL import Image, ImageStat
+
+Image.MAX_IMAGE_PIXELS = None
+
+IMG_EXT = {"jpg", "jpeg", "jpe", "jfif", "png", "gif", "bmp", "tif", "tiff",
+           "webp", "heic"}
+DEFAULT_SKIP_DIRS = {"$RECYCLE.BIN", "System Volume Information"}
+N = 128          # 精细比对分辨率
+MIN_STD = 8.0    # 灰度标准差下限，低于此视为纯色/近纯色
+
+
+def dhash_and_meta(path):
+    """返回 (dhash, 灰度标准差, 原始宽, 原始高)。原始尺寸必须在 resize 前取"""
+    try:
+        with Image.open(path) as im:
+            w0, h0 = im.size
+            g = im.convert("L")
+            std = ImageStat.Stat(g.resize((64, 64), Image.LANCZOS)).stddev[0]
+            # tobytes() 而非 getdata()：后者在 Pillow 14 会移除
+            small = g.resize((9, 8), Image.LANCZOS)
+            px = small.tobytes()
+    except Exception:
+        return None, None, None, None
+    bits = 0
+    for r in range(8):
+        base = r * 9
+        for c in range(8):
+            bits = (bits << 1) | (1 if px[base + c] > px[base + c + 1] else 0)
+    return bits, std, w0, h0
+
+
+def rgb_bytes(path):
+    try:
+        with Image.open(path) as im:
+            return im.convert("RGB").resize((N, N), Image.LANCZOS).tobytes()
+    except Exception:
+        return None
+
+
+def rgb_mae(a, b):
+    t = 0
+    for i in range(len(a)):
+        d = a[i] - b[i]
+        t += d if d > 0 else -d
+    return t / len(a)
+
+
+def hist_corr(a, b, bins=16):
+    ha, hb = [0] * (3 * bins), [0] * (3 * bins)
+    for i in range(0, len(a), 3):
+        for k in range(3):
+            ha[k * bins + a[i + k] * bins // 256] += 1
+            hb[k * bins + b[i + k] * bins // 256] += 1
+    ma = sum(ha) / len(ha)
+    mb = sum(hb) / len(hb)
+    num = sum((ha[i] - ma) * (hb[i] - mb) for i in range(len(ha)))
+    da = sum((x - ma) ** 2 for x in ha) ** 0.5
+    db = sum((x - mb) ** 2 for x in hb) ** 0.5
+    return num / (da * db) if da and db else 0.0
+
+
+def ham(a, b):
+    return bin(a ^ b).count("1")
+
+
+def main():
+    ap = argparse.ArgumentParser(description="照片查重")
+    ap.add_argument("--roots", required=True, help="图片根目录，多个用逗号分隔")
+    ap.add_argument("--out", required=True, help="产出目录")
+    ap.add_argument("--exclude", default="",
+                    help="排除的路径关键词，逗号分隔（如软件/教程目录）")
+    ap.add_argument("--skip-dirs", default="", help="跳过的目录名，逗号分隔")
+    ap.add_argument("--d-max", type=int, default=8, help="dHash 粗筛阈值")
+    ap.add_argument("--rgb-max", type=float, default=2.5, help="RGB 平均差上限")
+    ap.add_argument("--hist-min", type=float, default=0.99, help="直方图相关下限")
+    ap.add_argument("--min-std", type=float, default=MIN_STD, help="信息量门槛")
+    args = ap.parse_args()
+
+    roots = [r.strip() for r in args.roots.split(",") if r.strip()]
+    if not roots:
+        print("错误：--roots 为空", file=sys.stderr)
+        return 1
+    excludes = [e.strip() for e in args.exclude.split(",") if e.strip()]
+    skip = set(DEFAULT_SKIP_DIRS) | {
+        d.strip() for d in args.skip_dirs.split(",") if d.strip()}
+    os.makedirs(args.out, exist_ok=True)
+
+    # --- 阶段 1：指纹库 ---
+    lib = []
+    errors = []
+    total = 0
+    for root in roots:
+        if not os.path.isdir(root):
+            errors.append(f"[根目录不存在] {root}")
+            continue
+        for dp, dn, fn in os.walk(root):
+            dn[:] = [d for d in dn if d not in skip]
+            for f in fn:
+                if os.path.splitext(f)[1].lower().lstrip(".") not in IMG_EXT:
+                    continue
+                p = os.path.join(dp, f)
+                total += 1
+                if any(e in p for e in excludes):
+                    continue
+                try:
+                    sz = os.path.getsize(p)
+                except OSError as ex:
+                    errors.append(f"{p}\t{ex.__class__.__name__}")
+                    continue
+                if sz == 0:
+                    continue
+                h, std, w, hh = dhash_and_meta(p)
+                if h is None:
+                    errors.append(f"{p}\t读取失败")
+                    continue
+                if std is not None and std < args.min_std:
+                    continue          # 纯色/近纯色，dHash 对它无意义
+                lib.append({"path": p, "dh": h, "std": std,
+                            "w": w, "h": hh, "size": sz,
+                            "topdir": p.replace(root, "").split(os.sep)[0]
+                            if p.startswith(root) else ""})
+                if total % 1000 == 0:
+                    print(f"  已处理 {total} 张 ...", flush=True)
+
+    print(f"扫描 {total} 张 -> 有效候选 {len(lib)} 张（排除 {total - len(lib)}）")
+
+    with open(os.path.join(args.out, "photo_hash.csv"), "w", newline="",
+              encoding="utf-8-sig") as f:
+        w = csv.DictWriter(f, fieldnames=["path", "dhash", "w", "h", "size",
+                                          "std", "topdir"])
+        w.writeheader()
+        for it in lib:
+            w.writerow({"path": it["path"], "dhash": f"{it['dh']:016x}",
+                        "w": it["w"], "h": it["h"], "size": it["size"],
+                        "std": round(it["std"], 2), "topdir": it["topdir"]})
+
+    # --- 阶段 2：粗筛（dHash）+ 精细比对 ---
+    edges = defaultdict(set)
+    checked = 0
+    for i in range(len(lib)):
+        for j in range(i + 1, len(lib)):
+            checked += 1
+            if checked % 5_000_000 == 0:
+                print(f"  粗筛 {checked//1_000_000} 百万对 ...", flush=True)
+            if ham(lib[i]["dh"], lib[j]["dh"]) > args.d_max:
+                continue
+            a, b = rgb_bytes(lib[i]["path"]), rgb_bytes(lib[j]["path"])
+            if a is None or b is None:
+                continue
+            rm = rgb_mae(a, b)
+            hc = hist_corr(a, b)
+            if rm <= args.rgb_max and hc >= args.hist_min:
+                edges[i].add(j)
+                edges[j].add(i)
+    print(f"  精细比对后确认的相似边: {sum(len(v) for v in edges.values()) // 2}")
+
+    # --- 阶段 3：complete-linkage 聚类 ---
+    visited = set()
+    groups = []
+    for i in sorted(edges, key=lambda x: -len(edges[x])):
+        if i in visited:
+            continue
+        grp = [i]
+        cand = set(edges[i])
+        while True:
+            best = None
+            for j in cand:
+                if j in visited or j in grp:
+                    continue
+                # 必须与组内【所有】成员都相似，这是与单链接的关键区别
+                if all(j in edges[x] for x in grp):
+                    if best is None or len(edges[j]) > len(edges[best]):
+                        best = j
+            if best is None:
+                break
+            grp.append(best)
+            cand |= edges[best]
+        visited.update(grp)
+        if len(grp) > 1:
+            groups.append(grp)
+
+    print(f"  聚类 {len(groups)} 组")
+
+    # --- 输出 ---
+    out_rows = []
+    for grp in groups:
+        paths = sorted(lib[x]["path"] for x in grp)
+        gid = hashlib.md5("|".join(paths).encode("utf-8")).hexdigest()[:8]
+        worst_rgb, worst_hist = 0.0, 1.0
+        for a in range(len(grp)):
+            for b in range(a + 1, len(grp)):
+                ra, rb = rgb_bytes(lib[grp[a]]["path"]), rgb_bytes(lib[grp[b]]["path"])
+                if ra is None or rb is None:
+                    continue
+                worst_rgb = max(worst_rgb, rgb_mae(ra, rb))
+                worst_hist = min(worst_hist, hist_corr(ra, rb))
+        verdict = ("确认重复" if worst_rgb <= args.rgb_max
+                   and worst_hist >= args.hist_min else "疑似不同")
+        ordered = sorted(grp, key=lambda x: (-(lib[x]["w"] * lib[x]["h"]),
+                                             -lib[x]["size"]))
+        for k, x in enumerate(ordered):
+            out_rows.append({
+                "group_id": gid, "verdict": verdict,
+                "max_rgb": round(worst_rgb, 2), "min_hist": round(worst_hist, 4),
+                "path": lib[x]["path"], "size": lib[x]["size"],
+                "w": lib[x]["w"], "h": lib[x]["h"],
+                "action": "keep" if k == 0 else "move",
+            })
+
+    with open(os.path.join(args.out, "dup_groups.csv"), "w", newline="",
+              encoding="utf-8-sig") as f:
+        w = csv.DictWriter(f, fieldnames=["group_id", "verdict", "max_rgb",
+                                          "min_hist", "path", "size", "w", "h",
+                                          "action"])
+        w.writeheader()
+        w.writerows(out_rows)
+
+    err_txt = os.path.join(args.out, "photo_errors.txt")
+    with open(err_txt, "w", encoding="utf-8") as f:
+        f.write("\n".join(errors))
+
+    # 按 group_id 去重统计，不能数行数
+    conf = len({r["group_id"] for r in out_rows if r["verdict"] == "确认重复"})
+    print()
+    print(f"重复组 {len(groups)}，其中确认重复 {conf} 组")
+    print(f"产出目录: {args.out}")
+    if errors:
+        print(f"!! 读取失败的 {len(errors)} 个文件见 {err_txt}")
+    return 2 if errors else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
