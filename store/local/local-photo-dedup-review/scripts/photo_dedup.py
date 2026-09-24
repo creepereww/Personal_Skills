@@ -7,6 +7,14 @@
     python photo_dedup.py --roots "G:\\01_照片,G:\\02_视频" --out "./work" \\
         --exclude "05_软件工具,06_学习资料,08_游戏"
 
+    # 只查「本地 G 盘」与「云盘导出目录」之间重复的（忽略各目录内部的重复）
+    python photo_dedup.py --mode cross \\
+        --roots "G:\\01_照片,D:\\一刻相册导出" --out "./work"
+
+    # 云盘照片通常被压缩过，判定可略放宽
+    python photo_dedup.py --mode cross --rgb-max 4 --hist-min 0.97 \\
+        --roots "G:\\01_照片,D:\\一刻相册导出" --out "./work"
+
 产出（都在 --out 目录）：
     photo_hash.csv   指纹库：path, dhash, w, h, size, std, topdir
     dup_groups.csv   重复组：group_id, verdict, max_rgb, min_hist, path, size, w, h, action
@@ -113,6 +121,10 @@ def main():
     ap.add_argument("--rgb-max", type=float, default=2.5, help="RGB 平均差上限")
     ap.add_argument("--hist-min", type=float, default=0.99, help="直方图相关下限")
     ap.add_argument("--min-std", type=float, default=MIN_STD, help="信息量门槛")
+    ap.add_argument("--mode", choices=["all", "cross"], default="all",
+                    help="all=查所有重复（默认）；cross=只查【跨根目录】的重复，"
+                         "用于「本地 vs 云盘导出目录」这类场景，"
+                         "不会把各目录内部的重复混进来")
     args = ap.parse_args()
 
     roots = [r.strip() for r in args.roots.split(",") if r.strip()]
@@ -128,7 +140,7 @@ def main():
     lib = []
     errors = []
     total = 0
-    for root in roots:
+    for ri, root in enumerate(roots):
         if not os.path.isdir(root):
             errors.append(f"[根目录不存在] {root}")
             continue
@@ -155,7 +167,7 @@ def main():
                 if std is not None and std < args.min_std:
                     continue          # 纯色/近纯色，dHash 对它无意义
                 lib.append({"path": p, "dh": h, "std": std,
-                            "w": w, "h": hh, "size": sz,
+                            "w": w, "h": hh, "size": sz, "root": ri,
                             "topdir": p.replace(root, "").split(os.sep)[0]
                             if p.startswith(root) else ""})
                 if total % 1000 == 0:
@@ -176,8 +188,12 @@ def main():
     # --- 阶段 2：粗筛（dHash）+ 精细比对 ---
     edges = defaultdict(set)
     checked = 0
+    cross_only = (args.mode == "cross")
     for i in range(len(lib)):
         for j in range(i + 1, len(lib)):
+            # cross 模式：跳过同一个根目录内部的配对
+            if cross_only and lib[i]["root"] == lib[j]["root"]:
+                continue
             checked += 1
             if checked % 5_000_000 == 0:
                 print(f"  粗筛 {checked//1_000_000} 百万对 ...", flush=True)
