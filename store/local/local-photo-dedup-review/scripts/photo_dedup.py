@@ -17,10 +17,14 @@
 
 产出（都在 --out 目录）：
     photo_hash.csv   指纹库：path, dhash, w, h, size, std, topdir
-    dup_groups.csv   重复组：group_id, verdict, max_rgb, min_hist, path, size, w, h, action
+    dup_groups.csv   重复组：group_id, verdict, max_rgb, min_hist, block_max,
+                     path, size, w, h, action
 
 判定标准（可用参数调）：
-    确认重复：整组两两 rgb128 <= --rgb-max(2.5)  且  直方图相关 >= --hist-min(0.99)
+    确认重复：整组两两 rgb128 <= --rgb-max(2.5)
+              且 直方图相关 >= --hist-min(0.99)
+              且 block_max <= --block-max(1.5)
+              且 文件名时间戳不冲突
     否则      ：疑似不同（仅供人工参考，不可据此删除）
 
 设计要点：
@@ -28,6 +32,11 @@
     - 信息量门槛（灰度标准差）过滤纯色/近纯色图，它们对 dHash 无意义
     - 领域过滤：软件/教程目录不该作为候选，排除后误配大幅下降
     - 先用 dHash 粗筛再精细比对，避免 O(n^2) 的全量像素比对
+    - **block_max 是挡连拍的关键**：全图平均差会把「只有人脸动了一点」摊平到看不见，
+      直方图也无效（全局颜色分布几乎不变）。分块取最差那块才能识破。
+      提高分辨率没用 —— 数值只是等比放大，相对间距不变。
+    - 文件名时间戳冲突（`IMG_x_133141` vs `IMG_x_133142`）= 不同时刻拍的，直接否决。
+      用文件名而不是 EXIF，后者被重新导出重写过。
     - complete-linkage 聚类，不用单链接（后者会因传递性合并出巨大错误组）
     - 组 ID 用路径哈希，保证多次运行稳定
     - 幂等、失败要响（读取失败计入 errors 并落盘）
@@ -38,6 +47,7 @@ import argparse
 import csv
 import hashlib
 import os
+import re
 import sys
 from collections import defaultdict
 
@@ -110,6 +120,48 @@ def ham(a, b):
     return bin(a ^ b).count("1")
 
 
+TS_RE = re.compile(r"((?:19|20)\d{6})[_-](\d{6})")
+
+
+def fname_ts(name):
+    """从文件名抠出拍摄时刻，抠不到返回 None。
+
+    用文件名而不是 EXIF date_time —— 后者在重新导出时会被重写，
+    同一张照片的副本可能带着互不相同的时间。
+    """
+    m = TS_RE.search(name)
+    return (m.group(1) + m.group(2)) if m else None
+
+
+def block_max(a, b, blocks=8):
+    """把 128x128 归一化图切成 blocks x blocks，返回**最差那块**的平均差。
+
+    区分「连拍」和「重压缩副本」的关键：
+      重压缩是整图均匀地差一点点；连拍是背景全对、只有人脸那块差很多。
+    全图平均差两者可能一样大（实测都是 3.9 上下），只有分块取最大能把它们分开。
+
+    注意：提高 N（128→256→384）不会拉开差距，数值只是等比放大。
+    """
+    step = N // blocks
+    row = N * 3
+    worst = 0.0
+    for br in range(blocks):
+        y0 = br * step * row
+        for bc in range(blocks):
+            x0 = bc * step * 3
+            tot = cnt = 0
+            for r in range(step):
+                base = y0 + r * row + x0
+                for c in range(step * 3):
+                    d = a[base + c] - b[base + c]
+                    tot += d if d > 0 else -d
+                    cnt += 1
+            m = tot / cnt
+            if m > worst:
+                worst = m
+    return worst
+
+
 def main():
     ap = argparse.ArgumentParser(description="照片查重")
     ap.add_argument("--roots", required=True, help="图片根目录，多个用逗号分隔")
@@ -120,6 +172,11 @@ def main():
     ap.add_argument("--d-max", type=int, default=8, help="dHash 粗筛阈值")
     ap.add_argument("--rgb-max", type=float, default=2.5, help="RGB 平均差上限")
     ap.add_argument("--hist-min", type=float, default=0.99, help="直方图相关下限")
+    ap.add_argument("--block-max", type=float, default=1.5,
+                    help="分块最大差异上限 —— 挡住连拍/水印/局部改动。"
+                         "真重复≈0，重压缩副本<1.5，连拍/水印/不同截图 10~48")
+    ap.add_argument("--no-ts-guard", action="store_true",
+                    help="关闭「文件名时间戳冲突」否决（默认开启）")
     ap.add_argument("--min-std", type=float, default=MIN_STD, help="信息量门槛")
     ap.add_argument("--mode", choices=["all", "cross"], default="all",
                     help="all=查所有重复（默认）；cross=只查【跨根目录】的重复，"
@@ -168,6 +225,7 @@ def main():
                     continue          # 纯色/近纯色，dHash 对它无意义
                 lib.append({"path": p, "dh": h, "std": std,
                             "w": w, "h": hh, "size": sz, "root": ri,
+                            "fts": fname_ts(os.path.basename(p)),
                             "topdir": p.replace(root, "").split(os.sep)[0]
                             if p.startswith(root) else ""})
                 if total % 1000 == 0:
@@ -186,8 +244,10 @@ def main():
                         "std": round(it["std"], 2), "topdir": it["topdir"]})
 
     # --- 阶段 2：粗筛（dHash）+ 精细比对 ---
+    # 顺序按「便宜的先上、贵的放最后」：汉明距离 → 时间戳 → RGB 平均差 → 直方图 → block_max
     edges = defaultdict(set)
     checked = 0
+    ts_blocked = 0
     cross_only = (args.mode == "cross")
     for i in range(len(lib)):
         for j in range(i + 1, len(lib)):
@@ -199,15 +259,27 @@ def main():
                 print(f"  粗筛 {checked//1_000_000} 百万对 ...", flush=True)
             if ham(lib[i]["dh"], lib[j]["dh"]) > args.d_max:
                 continue
+            # 文件名时间戳冲突 = 不同时刻拍的，不可能是重复
+            if not args.no_ts_guard:
+                ti, tj = lib[i]["fts"], lib[j]["fts"]
+                if ti and tj and ti != tj:
+                    ts_blocked += 1
+                    continue
             a, b = rgb_bytes(lib[i]["path"]), rgb_bytes(lib[j]["path"])
             if a is None or b is None:
                 continue
-            rm = rgb_mae(a, b)
-            hc = hist_corr(a, b)
-            if rm <= args.rgb_max and hc >= args.hist_min:
-                edges[i].add(j)
-                edges[j].add(i)
-    print(f"  精细比对后确认的相似边: {sum(len(v) for v in edges.values()) // 2}")
+            if rgb_mae(a, b) > args.rgb_max:
+                continue
+            if hist_corr(a, b) < args.hist_min:
+                continue
+            # 最后一道：挡住连拍/水印这类「只差一块」的
+            if block_max(a, b) > args.block_max:
+                continue
+            edges[i].add(j)
+            edges[j].add(i)
+    n_edges = sum(len(v) for v in edges.values()) // 2
+    print(f"  精细比对后确认的相似边: {n_edges}"
+          + (f"（文件名时间戳冲突否决 {ts_blocked} 对）" if ts_blocked else ""))
 
     # --- 阶段 3：complete-linkage 聚类 ---
     visited = set()
@@ -241,22 +313,31 @@ def main():
     for grp in groups:
         paths = sorted(lib[x]["path"] for x in grp)
         gid = hashlib.md5("|".join(paths).encode("utf-8")).hexdigest()[:8]
-        worst_rgb, worst_hist = 0.0, 1.0
+        worst_rgb, worst_hist, worst_blk = 0.0, 1.0, 0.0
+        ts_conflict = False
         for a in range(len(grp)):
             for b in range(a + 1, len(grp)):
-                ra, rb = rgb_bytes(lib[grp[a]]["path"]), rgb_bytes(lib[grp[b]]["path"])
+                ia, ib = lib[grp[a]], lib[grp[b]]
+                ra, rb = rgb_bytes(ia["path"]), rgb_bytes(ib["path"])
                 if ra is None or rb is None:
                     continue
                 worst_rgb = max(worst_rgb, rgb_mae(ra, rb))
                 worst_hist = min(worst_hist, hist_corr(ra, rb))
+                worst_blk = max(worst_blk, block_max(ra, rb))
+                if (not args.no_ts_guard and ia["fts"] and ib["fts"]
+                        and ia["fts"] != ib["fts"]):
+                    ts_conflict = True
         verdict = ("确认重复" if worst_rgb <= args.rgb_max
-                   and worst_hist >= args.hist_min else "疑似不同")
+                   and worst_hist >= args.hist_min
+                   and worst_blk <= args.block_max
+                   and not ts_conflict else "疑似不同")
         ordered = sorted(grp, key=lambda x: (-(lib[x]["w"] * lib[x]["h"]),
                                              -lib[x]["size"]))
         for k, x in enumerate(ordered):
             out_rows.append({
                 "group_id": gid, "verdict": verdict,
                 "max_rgb": round(worst_rgb, 2), "min_hist": round(worst_hist, 4),
+                "block_max": round(worst_blk, 2),
                 "path": lib[x]["path"], "size": lib[x]["size"],
                 "w": lib[x]["w"], "h": lib[x]["h"],
                 "action": "keep" if k == 0 else "move",
@@ -265,8 +346,8 @@ def main():
     with open(os.path.join(args.out, "dup_groups.csv"), "w", newline="",
               encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=["group_id", "verdict", "max_rgb",
-                                          "min_hist", "path", "size", "w", "h",
-                                          "action"])
+                                          "min_hist", "block_max", "path", "size",
+                                          "w", "h", "action"])
         w.writeheader()
         w.writerows(out_rows)
 
