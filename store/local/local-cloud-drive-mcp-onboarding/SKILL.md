@@ -1,7 +1,7 @@
 ---
 name: local-cloud-drive-mcp-onboarding
-description: 给 opencode 或同类 MCP 客户端接入新的网盘/云盘 MCP 时使用。覆盖"查官方有无 → 凭证类型判断 → 官方付费时自建免费路线 → 端点探测 → 登录 → 验证三件套"全流程，含 123云盘站内接口速查、跨平台查重禁忌（不可用 md5）、秒传探测的副作用、分页陷阱与看门狗、长跑搬运的后台进程托管（Job Object 逃逸 / WMI 启动 / 无窗口）。触发词：装个 X 网盘 MCP、接入网盘 MCP、云盘 MCP、自建 MCP 服务端、网盘接口失效、跨盘查重、秒传、搬运进程被杀、后台任务自动停了。
-version: v0.3
+description: 给 opencode 或同类 MCP 客户端接入新的网盘/云盘 MCP 时使用。覆盖"查官方有无 → 凭证类型判断 → 官方付费时自建免费路线 → 端点探测 → 登录 → 验证三件套"全流程，含**上游是 npm 包且只写了 Unix 时的 Windows 适配（垫片替换 execFileSync）**、123云盘站内接口速查、跨平台查重禁忌（不可用 md5）、秒传探测的副作用、分页陷阱与看门狗、**遍历限流会静默漏目录**、夸克 MCP 实参语义、长跑搬运的后台进程托管（Job Object 逃逸 / WMI 启动 / 无窗口）。触发词：装个 X 网盘 MCP、接入网盘 MCP、云盘 MCP、自建 MCP 服务端、MCP 启动即失败、ENOENT、npm 包装不上、网盘接口失效、跨盘查重、秒传、搬运进程被杀、后台任务自动停了、查重结果不对。
+version: v0.5
 ---
 
 # 云盘 MCP 接入流程
@@ -19,6 +19,51 @@ version: v0.3
 3. **凭证形态 = 可信度信号**：
    - 官方：OAuth 授权页 / clientID+clientSecret，可撤销可限权
    - 第三方：抓 Cookie 或账号密码，风险自担
+
+## 0.5 上游只有 npm 包时：先验 Windows 兼容性，再谈接入
+
+症状识别：npm 上搜到现成 MCP，装完**启动即失败**，日志就一行 `ENOENT`。
+
+1. **查有没有 win32 分支**
+   ```bash
+   grep -n "win32\|process.platform\|\.cmd" <包>/src/*.js
+   grep -n "which\|/usr/local/bin" <包>/install.js
+   ```
+   两个都空 = 上游纯 Unix 写法，Windows 上大概率跑不起来。
+
+2. **典型病症：服务端直接调同厂 CLI**
+   `execFileSync('<cli名>', ...)` —— npm 在 Windows 只生成 `<cli名>.cmd`（没有 `.exe`），
+   而 Node 的 `child_process` **不会**给不带扩展名的命令补 `.cmd`/`.bat` → 必然 `ENOENT`。
+
+3. **对策：写「垫片」，别改上游代码**
+   上游通常是 `const { x } = require('child_process')` **解构取值**，
+   所以只要在 require 上游**之前**替换模块导出就能生效：
+   ```js
+   const cp = require('child_process');
+   const orig = cp.execFileSync;
+   cp.execFileSync = (file, args, opts) =>
+     file === '<cli名>' ? orig.call(cp, process.execPath, [CLI_JS, ...args], opts)
+                        : orig.call(cp, file, args, opts);
+   require(MCP_JS);
+   ```
+   好处：**上游一行不用动**，升级后垫片也不用改（只依赖调用约定，不依赖实现）。
+
+4. **npm 装不动时的判定顺序**
+   ① `npm view <pkg> version` 通 → 网络没断，只是慢；
+   ② 加 `--ignore-scripts`（postinstall 常往 home 写配置、还调 `which`）；
+   ③ 前台被工具层超时 SIGTERM → 转后台，**日志落到文件**；
+   ④ npm 静默不动但 `node_modules/<包>` 已落地 → **停掉 npm，直接跑 CLI 验证可用性**；
+   ⑤ **手工把新依赖补进 workspace 的 `package.json`**，否则下次 `npm install` 会把它当多余依赖 prune 掉。
+
+5. **验证顺序：先 CLI，再 stdio 探针**
+   `node <包>/bin/<cli>.js status --json` 跑通 → 再走 `initialize` → `tools/list` → 一次 `tools/call`。
+   别一上来就调工具 —— 那样失败时分不清是协议层问题还是上游问题。
+
+6. **凭证落点先查清，别默认要重新登录**
+   有些工具在本机**早就留了登录态**（很可能是别的 agent 之前装的），先翻一遍：
+   `~/.config/<工具名>/`、`~/.<工具名>/`、项目内的 `secrets/`、`%APPDATA%\<工具名>\`。
+
+> 完整实例（天翼云盘 cloud189-mcp 的 Windows 适配 + 垫片）：`D:\DATA\AI_DATA\mcp-tianyi\README.md`
 
 ## 可用脚本
 
@@ -114,12 +159,45 @@ print(r.status_code, r.headers.get('content-type'), r.text[:160])
 - 写递归遍历时**必须加看门狗**：单个请求挂死会让整个盘点卡住（夸克某个大目录曾卡 26 分钟）；
   做法是记录"最后一次响应时间"，超时则 `proc.kill()` 解开阻塞，并把未完成的子目录记下来
 
-### 4.4 删除的语义分平台
+### 4.4 遍历会限流：静默漏目录（**危险，会得出假结论**）
+
+123云盘 连续列目录会返回 `code=100011 请勿频繁操作`。真正的问题不是报错，
+而是**它常被 `try/except: continue` 吞掉**——目录被跳过却不报错，
+最终算出"两边没有重复"这种**假阴性**。
+
+实测：不带节流全盘走查，只列到 650 个文件 / 114.80 GB（实际约 2374 个 / 341.84 GB），
+脚本输出"重复 0 个"，看起来完全正常。
+
+对策：
+
+- **每个请求之间 sleep**（0.45s 够用），并对 `100011` 做**退避重试**（`2s × 次数`）
+- **不要静默吞掉失败**：统计"未读到的目录数"，只要有一个没读到就不能声称"无重复"。
+  让结果携带 `可信: true/false`，调用方必须断言
+- **省事的替代**：当两侧内容类型明显不同（一边纯软件安装包、一边纯学科资料）时，
+  用**结构枚举**（只列顶层若干层看内容构成）代替全盘逐文件比对，无需全量遍历
+
+### 4.5 删除的语义分平台
 
 - 123 的 `trash(delete=True)` 是**彻底删除**（不可恢复）
 - 夸克 `quark_delete` 走自己的回收站
 - 百度网页接口删除进回收站（要清空才释放空间）
 - 批量删除前一定先干跑 + 复核覆盖度
+
+### 4.6 夸克 MCP 的实参语义（别猜，实测过）
+
+拿不准就先用 `tools/list` 问一次确切 schema（把 `initialize` → `notifications/initialized`
+→ `tools/list` 三条 JSON-RPC 一起喂给 MCP 的 exe 即可）。已确认的：
+
+- `quark_move{src, dst}`：`dst` 是**目标父目录**，且**必须已存在**。
+  传"目标完整路径"会报 `FILE_NOT_FOUND: failed to get destination directory info`。
+  移动后**保留原名** → 要改名得再调一次 `quark_rename`。
+  移进**同一个**父目录会报 `不能移动至相同目录`（此时只 rename 即可）
+- `quark_create{remote_path}`：**父目录必须先存在**，不能一次建多级
+  （直接建不存在的多级会报 `CREATE_DIRECTORY_ERROR: failed to get parent directory`）
+- `quark_rename{path, new_name}`：`new_name` 只是名字，不能含路径分隔符
+
+→ 因此"移动 + 改名"的稳妥做法是：**建好父目录 → move 进去 → rename**，
+  并且每一步前先 `quark_info` 判断，做成幂等（已到位就跳过）。
 
 ## 5. 验证三件套（每次改完都要跑）
 
