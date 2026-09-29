@@ -1,7 +1,7 @@
 ---
 name: wgc-work1-px
-description: 公司电脑 WGC-WORK1-PX 的本机环境事实 —— 机型（Lecoo）、git 装在 D:\Git、只装了 WorkBuddy 与 ZCode、两条磁盘余量、网络直连 GitHub 正常、Everything 1.4.1.1029 在 D:\ 但没装 es.exe。在这台机器上要判断"某个工具/客户端在哪、网络通不通"时看这里。通用规则（路径格式、junction、命名）见 local-windows-shell-conventions。
-version: v0.1
+description: 公司电脑 WGC-WORK1-PX 的本机环境事实 —— 机型（Lecoo）、HOME 与 %USERPROFILE% 错位（HOME 在 D:\AppData\Roaming\SPB_Data）、git 装在 D:\Git、装了哪些 agent（WorkBuddy/ZCode/QClaw/Codex/MarsCode/Trae，QClaw 数据在 D 盘）、两条磁盘余量、网络直连 GitHub 正常、Everything 1.4.1.1029 在 D:\ 但没装 es.exe。在这台机器上要判断"某个工具/客户端在哪、网络通不通"时看这里。通用规则（路径格式、junction、命名）见 local-windows-shell-conventions。
+version: v0.2
 ---
 
 # wgc-work1-px（公司电脑）
@@ -15,10 +15,16 @@ version: v0.1
 | 项 | 值 |
 |---|---|
 | 主机名 | `WGC-WORK1-PX`（`%COMPUTERNAME%` 大写返回；旧名 `WGC`） |
-| 用户 | `cgw06`，HOME = `C:\Users\cgw06` |
+| 用户 | `cgw06`，`%USERPROFILE%` = `C:\Users\cgw06` |
+| **HOME** | ⚠️ `D:\AppData\Roaming\SPB_Data`（**不是** `C:\Users\cgw06`！被 SPB 重定向工具改过） |
 | 机型 | **Lecoo**（`Win32_ComputerSystem.Model` 为空） |
 | 内存 | 15.8 GB |
 | 系统 | Windows 11 家庭版 中文版，build 26200 |
+
+> ⚠️ **HOME 与 USERPROFILE 不一致**是这台的重要事实：`%USERPROFILE%` 指向 C 盘，
+> 但 `HOME` 指向 `D:\AppData\Roaming\SPB_Data`。**有些程序（如 QClaw）跟 `HOME` 走，数据落在 D 盘**；
+> 大多数 agent（WorkBuddy / ZCode / 豆包）跟 `%USERPROFILE%`，落在 C 盘。
+> 查目录时两个都要试。详见 `local-memory-map` 的「$HOME 错位」节。
 
 ## 磁盘
 
@@ -41,11 +47,16 @@ version: v0.1
 
 | 客户端 | 装了 | 位置 / 判据 |
 |---|---|---|
-| WorkBuddy | ✅ | `~/.workbuddy/` |
-| ZCode | ✅ | `~/.zcode/`（含真实会话数据） |
+| WorkBuddy | ✅ | `~/.workbuddy/`（走 `%USERPROFILE%`，在 C 盘） |
+| ZCode | ✅ | `C:/Users/cgw06/.zcode/`（含真实会话数据，走 `%USERPROFILE%`） |
+| QClaw | ✅ | **在 D 盘**：`D:/AppData/Roaming/SPB_Data/.qclaw/`（`memory/lossless/lcm.db`）+ `.openclaw/`（`state/openclaw.sqlite`、`identity/`）。跟 `HOME` 走 |
 | opencode | ❌ | 无安装痕迹、npm 全局目录都不存在 |
-| 豆包工作 | ❌ | 无安装痕迹 |
-| QClaw | ❌ | — |
+| 豆包工作 | ❌ | 无安装痕迹（`~/DoubaoWork`、`%LOCALAPPDATA%\DoubaoWork` 均不存在） |
+| Codex CLI | ✅ | `C:/Users/cgw06/.codex/`（`memories_1.sqlite` 等） |
+| MarsCode | ✅ | `C:/Users/cgw06/.marscode/`（预置 `builtin_skills`） |
+| Trae CN | ✅ | `C:/Users/cgw06/.trae-cn/`（预置 `builtin/global/skills`） |
+
+> 各处目录的详细机制（记忆形式、是否认公共位）见 `local-memory-map`，本表只记"装没装、在哪"。
 
 ## 网络
 

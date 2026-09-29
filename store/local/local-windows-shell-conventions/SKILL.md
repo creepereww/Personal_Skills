@@ -1,7 +1,7 @@
 ---
 name: local-windows-shell-conventions
-description: Windows 上跨机器通用的 shell 与链接约定 —— MSYS 程序的 /c/ 路径 vs Windows 原生程序的 C:/ 路径该用哪种、junction 目录联接的正确建删方式、Git for Windows 把 junction 当普通目录的坑、skill 目录命名正则。写 shell 脚本、建软链接、排查路径报错或 skill 没生效时看这里。机器专属信息（机型、客户端装在哪个盘、网络情况）不在这里，见本机对应的 machine 档。
-version: v0.1
+description: Windows 上跨机器通用的 shell 与链接约定 —— MSYS 程序的 /c/ 路径 vs Windows 原生程序的 C:/ 路径该用哪种、junction 目录联接的正确建删方式、Git for Windows 把 junction 当普通目录的坑、skill 目录命名正则、各 AI 客户端的 skills 目录、主机名大小写匹配。写 shell 脚本、建软链接、排查路径报错或 skill 没生效时看这里。机器专属信息（机型、客户端装在哪个盘、网络情况）见 machine 档；WorkBuddy 的 skill/专家机制见 local-memory-map。
+version: v0.4
 ---
 
 # Windows Shell 与链接约定（跨机器通用）
@@ -63,6 +63,7 @@ EXE="C:/path/to/program.exe"
 | QClaw | `~/.qclaw/skills` | ❌（但 `openclaw.json` 有 `skills.load.extraDirs` 和 per-agent 白名单） |
 
 统一入口在 `~/.skills`，路由与挂载规则见 `local-skills-hub`。
+**各 agent 的记忆、内置技能、专家分别存哪**，见 `local-memory-map`（那才是讲"位置"的地方）。
 
 ## 主机名匹配要注意大小写
 
@@ -73,6 +74,13 @@ Windows 主机名（`%COMPUTERNAME%`）**统一大写返回**，但字符串比�
 $hostName -ieq $dirName      # 用 -ieq / -contains 的大小写不敏感变体
 [StringComparer]::OrdinalIgnoreCase  # .NET 侧同理
 ```
+
+## WorkBuddy 的 skill 与 expert 机制 → 见 local-memory-map
+
+WorkBuddy 的 skill/expert 存储位置、从哪个目录加载（`.skill-list-cache.json` 判据）、
+`plugins/` 各子目录职责、专家包结构 —— **全部移到 `local-memory-map`**。
+本 skill 只管"换台 Windows 机器也成立"的约定（路径格式、junction、命名正则、主机名大小写），
+WorkBuddy 是**单一产品**的机制，不属于 Windows 通用范畴。
 
 ## 本机/机器专属信息放哪
 
