@@ -1,36 +1,27 @@
 ---
-name: wgc
-description: 家里那台电脑（主机名 WGC，机型 MECHREVO KUANGSHI）的本机环境事实 —— 四个客户端装在 D:\APP_MAGIC、git 用 D:\APP_CLOUD 自装的 2.49、直连 github.com:443 超时需走 SSH 或代理、系统代理 127.0.0.1:26561、Everything 在 图吧工具箱 下且 es.exe 已装。在那台机器上判断"工具在哪、网络通不通"时看这里。通用规则见 local-windows-shell-conventions。
+name: wgc-machine
+description: 家里那台电脑（主机名 WGC_MACHINE，机型 MECHREVO KUANGSHI）的本机环境事实 —— 四个客户端装在 D:\APP_MAGIC、git 用 D:\APP_CLOUD 自装的 2.49、直连 github.com:443 超时需走 SSH 或代理、系统代理 127.0.0.1:26561、Everything 在 图吧工具箱 下且 es.exe 已装。在那台机器上判断"工具在哪、网络通不通"时看这里。通用规则见 local-windows-shell-conventions。
 version: v0.1
 ---
 
-# wgc（家里的电脑）
+# wgc-machine（家里的电脑）
 
-> 本文件只对**主机名 `WGC` 的这台机器**成立。脚本只把与本机主机名匹配的 machine 档挂给 agent，
+> 本文件只对**主机名 `WGC_MACHINE` 的这台机器**成立。脚本只把与本机主机名匹配的 machine 档挂给 agent，
 > 所以在这台（公司电脑 `WGC-WORK1-PX`）上**不会**被加载 —— 里面的绝对路径在这边是无效的。
 > 通用规则见 `local-windows-shell-conventions`；仓库规则见 `local-skills-hub`。
 >
-> **目录名为什么是 `wgc` 而不是 `wgc-home`**：Windows 主机名不区分大小写但**字符串比较区分**，
-> 脚本按主机名匹配目录名。这台的 `%COMPUTERNAME%` 就是 `WGC`，所以目录必须叫 `wgc`（小写，
-> 符合命名正则）。给它起个语义化的名字（如 `wgc-home`）反而永远匹配不上 —— 详见本目录的 `NOTE.md`。
+> **目录名为什么是 `wgc-machine`**：脚本按主机名匹配目录名（`%COMPUTERNAME%` 转小写），
+> 所以目录名只能跟着主机名走。这台的 `%COMPUTERNAME%` 是 `WGC_MACHINE`，目录就必须叫 `wgc-machine`
+> （小写、符合命名正则）—— 曾漏掉 `-machine` 后缀而叫 `wgc`，导致本机档案一直挂不上，已订正。
+> 详见本目录的 `NOTE.md`。
 
 ## 身份
 
 | 项 | 值 |
 |---|---|
-| 主机名 | `WGC` |
+| 主机名 | `WGC_MACHINE`（曾记为 `WGC`，已实测订正） |
 | 用户 | `cgw06`，HOME = `C:\Users\cgw06` |
 | 机型 | **MECHREVO KUANGSHI Series** |
-| 磁盘 | C 盘约剩 70 GB、D 盘约剩 210 GB |
-
-## 身份
-
-| 项 | 值 |
-|---|---|
-| 主机名 | 旧名 `WGC`（**待核对**） |
-| 用户 | `cgw06`，HOME = `C:\Users\cgw06` |
-| 机型 | **MECHREVO KUANGSHI Series** |
-| 磁盘 | C 盘约剩 70 GB、D 盘约剩 210 GB |
 
 ## git（两套并存，注意别用错）
 

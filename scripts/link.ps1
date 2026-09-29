@@ -137,7 +137,7 @@ if (Test-Path $machineDir) {
         $report += "machine 档: 本机 $hostName -> " +
             $(if ($matched.Count -gt 0) { "挂载 [" + ($matched -join ", ") + "]" + $aliasNote } else { "无匹配（现有: " + ($allMachineDirs -join ", ") + "）" })
         if ($aliasNote) {
-            $report += "         ⚠️ 这是临时别名（host_aliases），重启后请删除该条"
+            $report += "         ℹ️ 映射来自 host_aliases 别名表 —— 长期需要的勿删，仅过渡用的重启后删"
         }
     }
 }
