@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
 description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时。含授权规则：完善中（v0.x）可直接改并回报，已完善（v1.0+）必须先确认或写 proposals/。
-version: v0.9
+version: v0.10
 ---
 
 # Skills Hub
@@ -14,10 +14,26 @@ version: v0.9
 ~/.skills/store/local/   纯本地 skill
 ~/.skills/store/fork/    从 GitHub 派生的 skill（含 .upstream 溯源）
 ~/.skills/store/cache/   远程 skill 缓存（不进 Git）
-~/.skills/routing.json   各 agent 挂载点
+~/.skills/routing.json   各 agent 挂载点 + 安装检测规则
 ~/.skills/registry.json  远程 skill 清单
 ~/.skills/proposals/     待审批提案（只有 v1.0+ 的 skill 才需要走这里）
+~/.skills/scripts/_common.ps1  共用探测函数（别在各脚本里重复实现）
 ```
+
+## ⚠️ 脚本不写死「本机事实」
+
+仓库跟着 Git 在多台机器上跑，各机器的 git 位置、装了哪些 agent 都不同。
+**凡是不通用的都得探测，不能硬编码** —— 两处已有现成函数（`scripts/_common.ps1`），别重新发明：
+
+| 探测对象 | 函数 | 优先级 |
+|---|---|---|
+| git.exe | `Get-GitExe` | `$env:SKILLS_GIT` > PATH > 常见安装位置 |
+| agent 装没装 | `Test-ClientInstalled` | `routing.json` 的 `detect` > 默认看 skills 目录的父目录 |
+
+- **没装的 agent 不挂、也不给它建目录**（旧行为是 `enabled` 就建，会在干净机器上凭空造空壳目录）。
+- `detect` 约定：不写 -> 看父目录；`[]` -> 不探测、永远视为已装；路径数组 -> 存在才算；`detect_any: true` -> 任一存在即可。
+- 加新 agent 时**必须想清楚它的 `detect`**：skills 目录父目录不存在的（如 opencode），要显式给安装路径，否则永远挂不上。
+- 调试用 `link.ps1 -ListClients`（列每个 client 的判定依据）；判错了用 `-Force` 强行挂或改 `detect`。
 
 ## 🚫 修改 skill 的授权规则
 
@@ -91,17 +107,28 @@ skill 分两个成熟度，**权限不同**：
 ## 常用操作
 
 ```powershell
-pwsh C:\Users\cgw06\.skills\scripts\link.ps1            # 刷新挂载（新增/改名后必做）
-pwsh C:\Users\cgw06\.skills\scripts\link.ps1 -DryRun    # 先看会做什么
-pwsh C:\Users\cgw06\.skills\scripts\sync.ps1            # 拉取 + 刷新
-pwsh C:\Users\cgw06\.skills\scripts\sync.ps1 -Commit "msg"   # 提交 + 同步
+pwsh ~/.skills/scripts/link.ps1                 # 刷新挂载（新增/改名后必做）
+pwsh ~/.skills/scripts/link.ps1 -DryRun         # 先看会做什么
+pwsh ~/.skills/scripts/link.ps1 -ListClients    # 看各 agent 装没装、判定依据
+pwsh ~/.skills/scripts/sync.ps1                 # 拉取 + 刷新
+pwsh ~/.skills/scripts/sync.ps1 -Commit "msg"   # 提交 + 同步
+pwsh ~/.skills/scripts/sync-preferences.ps1     # 分发偏好（sync.ps1 不含这步）
 ```
+
+## ⚠️ 清理目录前：别信目录的 mtime
+
+**往一个老目录里写一个文件，它的 mtime 就变成今天了。** 所以「目录显示今天建的」不能作为
+「这是本次产物」的证据。实锤过一次：`~/.zcode` 的 mtime 是当天（因为被写了 `AGENTS.md`），
+但里面 `cli/` 是 9/4 的 73MB 真实会话数据，差点被当残留清掉。
+
+判断要看**目录里面**的内容和日期，不是目录本身的 mtime。
+删除前先列出目标清单和依据，逐项确认 —— 尤其 `~/.zcode`、`~/.config` 这类可能混着真实数据的目录。
 
 ## 新增一个本地 skill
 
 1. 在 `store/local/` 建目录 `local-<slug>/`
-2. 写 `SKILL.md`，frontmatter 必须含 `name`（与目录名逐字符一致）、`description`、`version: v1.0`
-3. 跑 `link.ps1` —— 四个 agent 同时就位
+2. 写 `SKILL.md`，frontmatter 必须含 `name`（与目录名逐字符一致）、`description`、`version: v0.1`
+3. 跑 `link.ps1` —— 所有**已安装**的 agent 同时就位
 
 ## 用 skill-creator 创建 skill 时
 
@@ -109,7 +136,7 @@ pwsh C:\Users\cgw06\.skills\scripts\sync.ps1 -Commit "msg"   # 提交 + 同步
 
 ## 内容要分清"跨 agent 通用"还是"某个 agent 专属"
 
-skill 是**一份实体挂给所有 agent** 的（`routing.json` 的 `defaults.clients` 列了 4 个）。所以写之前先问一句：
+skill 是**一份实体挂给所有已安装 agent** 的（`routing.json` 的 `defaults.clients` 列了 4 个）。所以写之前先问一句：
 **换成另一个 agent 来读，这段还有用吗？**
 
 - **通用**（路径格式、junction 用法、目录位置、机器坐标…）→ 留在 skill 里
