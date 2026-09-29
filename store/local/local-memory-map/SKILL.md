@@ -1,7 +1,7 @@
 ---
 name: local-memory-map
 description: 各 agent 的记忆、技能、专家、偏好分别存在哪、能不能统一同步。含通用查法（先分类再定位）、WorkBuddy 的三级记忆与技能/专家三层存储（plugins 各子目录职责、实际加载源看 .skill-list-cache.json）、不能用 junction 统一记忆的四条原因、偏好靠 preferences.md 分发的三条通道，以及按官方文档整理的六类资产（自建技能·用户偏好·内置索引·自建专家·云端记忆·项目记忆）默认目录，覆盖 Claude Code/Codex/Gemini CLI/ZCode/Cursor/Windsurf/Trae/OpenClaw/QClaw/豆包/WorkBuddy，含跨工具公共位 ~/.agents/skills 与各家优先级。触发：记忆在哪、记忆存哪、个性化设置存哪、跨 agent 读记忆、同步记忆、用户偏好放哪、项目记忆怎么找、专家文件在哪、内置技能在哪、skills 默认目录、各 agent 资产位置、Gemini CLI 有没有 skills。机器专属实测见 store/machine/<主机名>/。
-version: v0.11
+version: v0.12
 ---
 
 # 记忆与各类资产的存放地图
@@ -311,10 +311,13 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 > **证据等级**（标在各行备注末尾，别把二手当权威）：
 > ✅ = 本次命中**官方一手文档**；⚠️ = 只有第三方整理 / 社区帖，可能过时；无标记 = 沿用旧记载、**本次未查证**。
 >
-> **v0.11 核对范围**（别把"查过"当成"全查过"）：
+> **核对范围**（别把"查过"当成"全查过"，改动这张表时同步更新这里）：
 > - ✅ 已命中官方一手：**Claude Code**（`code.claude.com/docs/zh-CN/memory`）、**Gemini CLI**（`google-gemini.github.io/gemini-cli/docs/cli/gemini-md.html` + GitHub `docs/reference/configuration.md`）、**ZCode**（`zcode.z.ai/newdocs/skill`、`zcode-ai.com/newdocs/qa`）、**Trae**（`docs.trae.ai/ide/skills`）
 > - ⚠️ 部分查证：Cursor、Windsurf（机制官方、路径靠第三方）
-> - **未查证**：**豆包 / 豆包工作**（反复检索只命中 CSDN 教程、GitHub discussion 等二手来源，**找不到官方一手文档**，相关行一律无标记，别当结论用）
+> - ⚠️ **豆包 / 豆包工作**：官方一手**只到「使用层」**（飞书帮助中心 `feishu.cn/hc/zh-CN/articles/282796994123`、官网 `doubao.com/work`）——
+>   **官方从未公开本地目录规范**。原因见下：它的技能是**客户端内管理的资产**（面板添加/新建/上传），
+>   不是"本地目录协议"。所以本地 `.user_skills` 之类只是**客户端展开的缓存**，一律归 machine 档，
+>   **别把本机实测路径当官方约定**。找了两轮没有 docs 站，这就是结论，别再重复搜。
 
 ### ① 自建技能（user-level skills）
 
@@ -329,6 +332,7 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 | **Trae** | **全局** `~/.trae/skills/`（Windows = `%userprofile%/.trae/skills`）；**项目级** `.trae/skills/` | ✅ 官方（`docs.trae.ai/ide/skills`）；SKILL.md 同开放标准（frontmatter name/description + 正文）；创建方式：对话生成 / 设置面板手动建 / 导入 zip；**旧记「企业版手动解压到 .skills、社区版无 Skills」已被官方推翻** |
 | **OpenClaw / QClaw** | 共享/managed：`~/.openclaw/skills/`；**工作区 `~/.openclaw/workspace/skills/`（同名冲突时优先级最高）** | ✅ 官方文档；QClaw 实例用 `~/.qclaw/` 前缀（跟 `$HOME` 走）；另可走 `skills.load.extraDirs` 配置 |
 | **WorkBuddy** | `~/.workbuddy/skills/`（自建）；插件技能从 `plugins/marketplaces/...` 加载 | 权威清单看 `.skill-list-cache.json` |
+| **豆包 / 豆包工作** | **无公开路径规范** —— 技能在客户端「技能 · 连接器」面板里添加/新建/管理（对话新建 / 上传技能包 / 新建自定义连接器） | ✅ 官方（飞书帮助中心 + 官网 `doubao.com/work`）；技能包**含 `SKILL.md`**（YAML frontmatter: `name`/`description`，可带 `references/`）⚠️（多篇第三方描述一致，官方未出规范）；**本地目录是客户端展开的缓存、非官方约定** → 见 machine 档 |
 
 ### ② 用户偏好（全局指引 / rules）
 
@@ -343,6 +347,7 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 | **Trae** | **全局** `~/.trae/user_rules`（国内版 `~/.trae-cn/user_rules`；Win 走 `%userprofile%`）；**项目** `.trae/rules/` | Markdown ✅（`docs.trae.ai/ide/rules`）；项目规则 4 种生效方式，子目录最多三层嵌套 |
 | **OpenClaw / QClaw** | **在「工作区」里**，不在配置目录根：`~/.openclaw/workspace/{AGENTS.md, SOUL.md(人设), IDENTITY.md, USER.md, TOOLS.md, MEMORY.md}` | Markdown，会话启动自动读 ✅；SOUL.md 单文件注入上限 20000 字符（总预算 60000） |
 | **WorkBuddy** | `~/.workbuddy/MEMORY.md`（用户级，我们的脚本写） | Markdown，每会话注入 |
+| **豆包 / 豆包工作** | `~/DoubaoWork/AGENTS.md`（**我们的脚本约定，非官方**） | ⚠️ 官方**未公开**任何全局指引文件；官方路径是客户端面板里的技能，**不走 AGENTS.md** —— 这份是否生效未经验证 |
 
 ### ③ 内置技能 / 专家索引（client-managed cache）
 
