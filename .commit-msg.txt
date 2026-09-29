@@ -1,0 +1,6 @@
+machine/wgc-work1-px v0.3: 补「推送 GitHub 的正确姿势」（沙箱代理 502 / schannel / 凭证卡住三坑）
+
+- github.com:443 实为时通时断（订正 v0.2 的"直连完全没问题"）
+- 记录可用命令：绕代理 + openssl 后端 + GIT_TERMINAL_PROMPT=0（走 GCM 已存凭证）+ 重试
+- 本仓库已固化 http.sslBackend=openssl
+- memory/2026-09-29 追加推送踩坑记录
