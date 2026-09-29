@@ -29,7 +29,7 @@ export PATH="/usr/bin:${PATH}"
 export PATH="${PATH}:/cmd"
 ```
 
-原始文件备份在 `~/.skills-backup-*/workbuddy-shim/`。
+原始文件（未打补丁的版本）留档在本 skill 的 `references/shell-runtime-bash-env.sh.orig`。
 
 **同一处补丁还有两段（git 与命令缓存）**：
 
