@@ -144,14 +144,22 @@ $PSVersionTable.PSVersion
 pwsh ~/.skills/scripts/link.ps1
 ```
 
-成功标志：每个 agent 一行 `DONE`，类似这样：
+成功标志：每个**这台机器上装了的** agent 一行 `DONE`，没装的报 `NOTFOUND` 跳过，类似这样：
 
 ```
-entities: 5 (fork:1 local:4)
-DONE     workbuddy  created=5 rebuilt=0 unchanged=0 pruned=0 conflict=0
-DONE     zcode      created=5 rebuilt=0 unchanged=0 pruned=0 conflict=0
-...
+entities: 14 (fork:3 local:11)
+DONE     workbuddy  created=14 rebuilt=0 unchanged=0 pruned=0 conflict=0
+MKDIR    zcode      C:\Users\cgw06\.agents\skills
+DONE     zcode      created=13 rebuilt=0 unchanged=0 pruned=0 conflict=0
+NOTFOUND opencode   未检测到安装，跳过（detect-any: 无...）
+NOTFOUND doubao     未检测到安装，跳过（detect: 无...\DoubaoWork）
+SKIP     qclaw      disabled (mode=extraDirs)
 ```
+
+> ℹ️ **`NOTFOUND` 不是错误**，是「这台机器没装这个 agent，所以不给它建目录」的正常结果。
+> 脚本靠 `routing.json` 里的 `detect` 规则判断装没装（默认看 skills 目录的父目录在不在）。
+> 想知道它凭什么这么判，跑 `pwsh ~/.skills/scripts/link.ps1 -ListClients` 看逐个 client 的探测依据。
+> 如果某个 agent 确实装了却被判成未装（探测路径不对），加 `-Force` 强行挂载，或改 `routing.json` 里它的 `detect`。
 
 **5.3** 逐个 agent 验证：打开每个客户端的新会话，问它：
 
@@ -187,18 +195,30 @@ pwsh ~/.skills/scripts/sync.ps1
 pwsh ~/.skills/scripts/link.ps1
 ```
 
+### 分发偏好（沟通习惯、协作规则）
+
+`sync.ps1` **不含**这一步，偏好是独立分发的：
+
+```
+pwsh ~/.skills/scripts/sync-preferences.ps1
+```
+
+它同样只写给「这台机器上装了的」agent —— 没装的会显示「跳过」。想强行写给没装的 agent，加 `-Force`。
+
 ---
 
 ## 第 7 步：验证清单（一台新机器配完，逐项打勾）
 
-- [ ] `git --version` 有输出
+- [ ] `git --version` 有输出（或设了 `SKILLS_GIT` 环境变量）
 - [ ] `$PSVersionTable.PSVersion` 是 7.x
 - [ ] `~/.skills` 目录存在，里面有 `README.md`、`store/`、`scripts/`
+- [ ] `pwsh ~/.skills/scripts/link.ps1 -ListClients` 逐个 client 的安装判定与实情相符
 - [ ] `pwsh ~/.skills/scripts/link.ps1` 执行完没有红色报错
 - [ ] WorkBuddy 新会话能看到 `local-skills-hub`
 - [ ] ZCode 新会话能看到 `local-skills-hub`
 - [ ] opencode 看到（如果装了）
 - [ ] 豆包工作看到（如果装了）
+- [ ] `~/.workbuddy/MEMORY.md` 里有 SYNC 标记块（偏好已分发）
 
 ---
 
@@ -298,6 +318,23 @@ cd /d C:\Users\你的用户名\.skills
 **Q：`pwsh` 不是命令**
 A：PowerShell 7 没装或没加 PATH。装完重开终端，或直接用全路径：
 `"C:\Program Files\PowerShell\7\pwsh.exe" C:\Users\你的用户名\.skills\scripts\link.ps1`
+
+**Q：脚本报「找不到 git」**
+A：脚本按 `SKILLS_GIT` 环境变量 → PATH → 常见安装位置 的顺序找 git。
+三个办法任选：① 装 Git 并重开终端（PATH 里有了就行）；② 设环境变量
+`$env:SKILLS_GIT = "D:\你的路径\git.exe"`（永久生效用 `setx SKILLS_GIT "..."`）；
+③ 把 git 的实际路径加进 `scripts/_common.ps1` 的 `$candidates` 列表。
+
+**Q：某个 agent 明明装了，却报 `NOTFOUND` 跳过**
+A：它的 `detect` 规则没覆盖你这台机器的安装位置。两步：
+① `pwsh ~/.skills/scripts/link.ps1 -ListClients` 看它探的是哪些路径；
+② 改 `routing.json` 里该 client 的 `detect` 数组，把真实路径加进去（支持 `%USERPROFILE%` 等环境变量），
+或临时加 `-Force` 强行挂载。
+
+**Q：清理旧目录时，怎么确定哪些是这次脚本建的、哪些是真实数据？**
+A：**别只看目录的修改时间。** 往一个老目录里写个文件，它的 mtime 就变成今天了。
+实锤过一次：`~/.zcode/cli` 因为被写了 `AGENTS.md`，父目录 `~/.zcode` 的 mtime 显示为当天，
+但 `cli/` 里是 9 月 4 日的 71.8MB 真实会话数据。判断要看**目录里面**的内容和日期，不是目录本身。
 
 **Q：push 时被拒绝（rejected）**
 A：远端有你本地没有的提交。先执行 `git pull --rebase` 再 `git push`。

@@ -6,10 +6,10 @@
 store/local/   纯本地 skill（Git 跟踪）
 store/fork/    从 GitHub 派生的 skill（含 .upstream 溯源）
 store/cache/   远程 skill 缓存（不进 Git，用完不删）
-routing.json   各 agent 挂载点
+routing.json   各 agent 挂载点 + 安装检测规则
 registry.json  远程 skill 清单
 proposals/     待审批提案（批准后删除）
-scripts/       link / sync
+scripts/       link / sync（_common.ps1 是共用探测函数）
 ```
 
 ## 日常
@@ -23,6 +23,8 @@ scripts/       link / sync
 | 检查 skill 是否合规 | `scripts\audit.ps1` |
 | 改完偏好后分发到各 agent | `scripts\sync-preferences.ps1` |
 | 拉取远程 skill | `scripts\pull.ps1 -Id <id>` 或 `-All` |
+| 看各 agent 装没装 | `scripts\link.ps1 -ListClients` |
+| 给没装的 agent 强行挂载 | `scripts\link.ps1 -Force` |
 
 ## 铁律
 
@@ -31,6 +33,19 @@ scripts/       link / sync
 3. 版本号 `vX.Y`：局部补充 Y+1，结构重写 X+1。只改 frontmatter 一行。
 4. 派生的 `.upstream` 里 `reason` ≤3 行 / 200 字。
 5. `local-<slug>` 是纯本地，`local-<slug>-<reposlug>` 是派生。名字须匹配 `^[a-z0-9]+(-[a-z0-9]+)*$`，且 frontmatter `name` 与目录名一致。
+
+## 跨机器适配（不写死本机事实）
+
+脚本不假设「这台机器装了什么、装在哪」，两处都要靠探测：
+
+| 探测对象 | 函数 | 优先级 |
+|---|---|---|
+| git.exe | `_common.ps1` 的 `Get-GitExe` | `$env:SKILLS_GIT` > PATH > 常见安装位置 |
+| agent 装没装 | `_common.ps1` 的 `Test-ClientInstalled` | `routing.json` 的 `detect` > 默认看 skills 目录的父目录 |
+
+- **没装的 agent 不挂、也不给它建目录**（旧行为是 `enabled` 就建，会在干净机器上凭空造空壳目录）。
+- `detect` 写法：不写 -> 看父目录；写 `[]` -> 不探测永远视为已装；写路径数组 -> 存在才算；`detect_any: true` -> 任一存在即可。
+- 探测结果被上次运行留下的目录污染时（如手工建过空目录），用 `link.ps1 -ListClients` 核对，必要时先清掉残留。
 
 ## 挂载现状
 
@@ -46,3 +61,4 @@ scripts/       link / sync
 
 - 联接是 **junction**，非管理员可建；删联接必须用 `[IO.Directory]::Delete($link,$false)`，`Remove-Item -Recurse` 会删掉源内容。
 - Git for Windows 会把 junction 当普通目录，所以 `_active/`、`store/cache/`、`proposals/` 都在 `.gitignore` 里。
+- **别用目录的 mtime 判断它是不是本次新建的** —— 往里写一个文件就会改父目录 mtime，容易把老目录误判成新产物（踩过：`~/.zcode/cli` 是 9/4 的真实数据，差点被当成今天的残留清掉）。

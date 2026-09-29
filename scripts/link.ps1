@@ -1,22 +1,31 @@
 # link.ps1 —— 把 store/ 下的 skill 实体挂载到各 agent 的 skills 目录
 # 用法（PowerShell 7）：
-#   pwsh .\link.ps1                 同步全部已启用的 client
-#   pwsh .\link.ps1 -Client zcode   只同步指定 client
-#   pwsh .\link.ps1 -DryRun         只报告将要做什么，不动磁盘
+#   pwsh .\link.ps1                    同步全部「已启用且已安装」的 client
+#   pwsh .\link.ps1 -Client zcode      只同步指定 client
+#   pwsh .\link.ps1 -DryRun            只报告将要做什么，不动磁盘
+#   pwsh .\link.ps1 -Force             没检测到安装也强行建目录并挂载
+#   pwsh .\link.ps1 -ListClients       列出各 client 的安装检测结果后退出
 #
 # 规则：
 #   - 只建 junction（目录联接），不用 symlink —— 实测非管理员即可创建
 #   - 遇到真实目录（非联接）一律跳过并报 CONFLICT，绝不覆盖用户文件
 #   - 摘链接用 [IO.Directory]::Delete(link,$false)；Remove-Item -Recurse 会误删源内容
+#   - 没装这个 agent 就跳过，不为它凭空建目录（判据见 _common.ps1 的 Test-ClientInstalled）
 
 param(
     [string]$Client = "",
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$Force,
+    [switch]$ListClients
 )
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$cfg  = Get-Content (Join-Path $root "routing.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+
+. (Join-Path $PSScriptRoot "_common.ps1")
+
+$plan = Get-ClientPlan $root
+$cfg  = $plan.Config
 
 function Get-ExpandedPath($p) { [Environment]::ExpandEnvironmentVariables($p) }
 
@@ -80,6 +89,18 @@ if ($skipped.Count -gt 0) {
     $report += "跳过（无 SKILL.md，不算 skill）: " + ($skipped -join ", ")
 }
 
+# -ListClients：只报安装检测结果，供人工核对
+if ($ListClients) {
+    $report += ""
+    $report += "客户端安装检测："
+    foreach ($c in $plan.Clients) {
+        $flag = if ($c.Installed) { "已装  " } else { "未检测到" }
+        $en   = if ($c.Enabled) { "enabled" } else { "disabled" }
+        $report += ("  {0,-10} {1,-8} {2,-9} {3}" -f $c.Name, $flag, $en, $c.InstallReason)
+    }
+    return ($report -join "`n")
+}
+
 foreach ($prop in $cfg.clients.PSObject.Properties) {
     $name = $prop.Name
     $def  = $prop.Value
@@ -93,6 +114,19 @@ foreach ($prop in $cfg.clients.PSObject.Properties) {
     if ($def.mode -ne "junction") {
         $report += ("SKIP     {0,-10} mode={1} -> 由原生配置负责，不建联接" -f $name, $def.mode)
         continue
+    }
+
+    # 存在性判定：这台机器没装这个 agent 就不为它建目录
+    $info = $plan.Clients | Where-Object { $_.Name -eq $name } | Select-Object -First 1
+    if (-not $info.Installed) {
+        if ($Force) {
+            $report += ("FORCE    {0,-10} 未检测到安装，但 -Force 指定照挂（{1}）" -f $name, $info.InstallReason)
+        }
+        else {
+            $report += ("NOTFOUND {0,-10} 未检测到安装，跳过（{1}）" -f $name, $info.InstallReason)
+            $report += ("         想强行挂载加 -Force；想确认判据用 -ListClients")
+            continue
+        }
     }
 
     $dir = Get-ExpandedPath $def.dir

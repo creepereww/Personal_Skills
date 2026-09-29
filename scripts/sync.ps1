@@ -6,7 +6,8 @@
 # 注意：commit message 中文没问题（存进 git 的是 UTF-8）。
 #       只是在某些工具里捕获 git 输出时会显示成乱码，看起来像坏了，其实是显示问题。
 #
-# 说明：本机 git 不在 PATH 里，脚本优先用 WorkBuddy 自带的 PortableGit。
+# 说明：git 位置由 _common.ps1 的 Get-GitExe 统一探测（PATH 优先，硬编码兜底）。
+#       可用环境变量 SKILLS_GIT 显式指定。
 
 param(
     [string]$Commit = "",
@@ -16,13 +17,9 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 
-$gitCandidates = @(
-    "C:\Users\cgw06\.workbuddy\binaries\PortableGit\versions\1.2.0\cmd\git.exe",
-    "C:\Program Files\Git\cmd\git.exe"
-)
-$git = $null
-foreach ($c in $gitCandidates) { if (Test-Path $c) { $git = $c; break } }
-if (-not $git) { throw "找不到 git.exe，请先安装 Git 或修正脚本里的路径" }
+. (Join-Path $PSScriptRoot "_common.ps1")
+
+$git = Get-GitExe
 
 $log = @()
 

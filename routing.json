@@ -1,36 +1,48 @@
 {
   "_comment": "挂载路由表。clients 是各 agent 的 skills 目录；mode=junction 走目录联接，mode=extraDirs 走原生配置（不建联接）。",
-  "_version": 1,
+  "_version": 2,
+  "_detect_doc": "每个 client 可写 detect 控制「这台机器装没装」的判定。不写 detect -> 默认看 skills 目录的父目录在不在（装了 agent 就会建自己的配置根）。detect=[] -> 不探测、永远视为已装。detect_any=true -> 多路径任一存在即可。装了才挂，没装跳过，除非跑 link.ps1 时加 -Force。",
 
   "clients": {
     "workbuddy": {
       "dir": "%USERPROFILE%\\.workbuddy\\skills",
       "mode": "junction",
       "enabled": true,
+      "detect": [],
+      "_detect_note": "宿主自身，永远视为已装（detect=[] 跳过探测）",
       "note": "只扫自己的目录，不认公共位"
     },
     "zcode": {
       "dir": "%USERPROFILE%\\.agents\\skills",
       "mode": "junction",
       "enabled": true,
+      "detect": ["%USERPROFILE%\\.zcode", "%USERPROFILE%\\.agents"],
+      "detect_any": true,
+      "_detect_note": "~/.agents/skills 是公共位，父目录不等于「装了 ZCode」；故用 ~/.zcode 或 ~/.agents 判是否装过",
       "note": "唯一认 ~/.agents/skills 公共位的 agent（黑盒实测确认）。它同时也扫 ~/.zcode/skills"
     },
     "opencode": {
       "dir": "%USERPROFILE%\\.config\\opencode\\skills",
       "mode": "junction",
       "enabled": true,
-      "note": "npm 全局 CLI；目录原本不存在，首次 link 会自动创建"
+      "detect": ["%USERPROFILE%\\.config\\opencode", "%APPDATA%\\npm\\node_modules\\opencode-ai", "%USERPROFILE%\\AppData\\Local\\Programs\\opencode"],
+      "detect_any": true,
+      "_detect_note": "skills 目录原生不存在（父目录判据会误判），故显式给出配置目录/npm 包/winget 三种安装位置",
+      "note": "npm 全局 CLI；目录原本不存在，确认装了之后首次 link 会自动创建"
     },
     "doubao": {
       "dir": "%USERPROFILE%\\DoubaoWork\\skills",
       "mode": "junction",
       "enabled": true,
+      "detect": ["%USERPROFILE%\\DoubaoWork"],
+      "_detect_note": "豆包工作会建 ~/DoubaoWork 配置根",
       "note": "豆包工作的技能根目录（黑盒实测确认可识别）"
     },
     "qclaw": {
       "dir": "%USERPROFILE%\\.qclaw\\skills",
       "mode": "extraDirs",
       "enabled": false,
+      "detect": ["%USERPROFILE%\\.qclaw"],
       "config": "%USERPROFILE%\\.qclaw\\openclaw.json",
       "note": "不纳入统一管理（用户已决定）：QClaw 那批多是它自己的预置 skill，保留其自带的 extraDirs 配置即可，本项目不接管"
     }
