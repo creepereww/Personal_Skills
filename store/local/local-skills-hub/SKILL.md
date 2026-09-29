@@ -11,14 +11,32 @@ version: v0.10
 ## 结构
 
 ```
-~/.skills/store/local/   纯本地 skill
+~/.skills/store/local/   纯本地 skill（跨机器成立）
 ~/.skills/store/fork/    从 GitHub 派生的 skill（含 .upstream 溯源）
 ~/.skills/store/cache/   远程 skill 缓存（不进 Git）
+~/.skills/store/machine/ 机器专属 skill，一个主机名一个目录，只挂本机那个
 ~/.skills/routing.json   各 agent 挂载点 + 安装检测规则
 ~/.skills/registry.json  远程 skill 清单
 ~/.skills/proposals/     待审批提案（只有 v1.0+ 的 skill 才需要走这里）
 ~/.skills/scripts/_common.ps1  共用探测函数（别在各脚本里重复实现）
 ```
+
+## ⚠️ 先分类：通用 / 机器专属 / agent 专属
+
+写任何环境信息前先问两句：
+
+| 这个事实… | 放哪 | 为什么 |
+|---|---|---|
+| 换台机器、换个 agent 都成立 | `store/local/` | 挂给所有已安装 agent |
+| **只对某台机器成立**（磁盘路径、机型、网络实测） | `store/machine/<主机名>/` | 脚本只挂**本机主机名匹配**的那个，不会跑到别的机器上 |
+| **只对某个 agent 成立** | `store/local/` + `routing.json` 的 `skills` 段限制 client | 别的 agent 读到是噪音 |
+
+**机器专属信息绝不放 `store/local/`** —— 那会跟着 Git 跑到别的机器上，给出错误信息。
+（真踩过：`local-wgc-machine` 把家那台的「github.com:443 超时」带到了公司电脑上，
+而公司电脑直连是通的，会让人白折腾 SSH 和代理。）
+
+`store/machine/<主机名>/` 的 `SKILL.md` 里 **frontmatter 的 `name` 必须等于目录名**（小写），
+且 `%COMPUTERNAME%` 是大写返回 —— 脚本用**大小写不敏感**比较匹配，写小写没问题。
 
 ## ⚠️ 脚本不写死「本机事实」
 
@@ -153,9 +171,19 @@ skill 是**一份实体挂给所有已安装 agent** 的（`routing.json` 的 `d
 
 `link.ps1` 会照这个名单挂载：不在名单里的 client **不挂**；如果之前已经挂过，还会顺手摘掉（输出里显示 `UNMOUNT`）。
 
-**反例（真踩过）**：`local-wgc-machine` 里塞了一半 WorkBuddy 宿主特有的东西（工具层输出拿不到、安全策略、沙箱代理），
-而它挂给 4 个 agent —— ZCode / opencode 读到的全是"WorkBuddy 的毛病"，纯噪音，甚至误导（它们可能根本没这些限制）。
-后来拆成 `local-wgc-machine`（通用）+ `local-workbuddy-quirks`（只挂 WorkBuddy）才算干净。
+**反例（真踩过，两次同源）**：`local-wgc-machine`（已拆解）犯过两次同类错误 ——
+
+1. **按 agent 混装**：里面塞了一半 WorkBuddy 宿主特有的东西（工具层输出拿不到、安全策略、沙箱代理），
+   而它挂给 4 个 agent —— ZCode / opencode 读到的全是"WorkBuddy 的毛病"，纯噪音甚至误导。
+   后来拆出 `local-workbuddy-quirks`（只挂 WorkBuddy）才算干净。
+2. **按机器混装**：它同时标着「本机 WGC_MACHINE」又住在跟随 Git 的 `store/local/` 里，
+   于是公司电脑上读到的机型、磁盘、git 路径、网络结论**全是家那台的** —— 其中「github.com:443 超时」
+   与实情（通）完全相反，会让人无谓地折腾 SSH 绕行和代理。
+   后来按「通用 / 机器专属」两层拆开：`local-windows-shell-conventions` + `store/machine/<主机名>/`。
+
+**教训**：写一个 skill 前先问「这个事实**换台机器 / 换个 agent** 还成立吗」。
+只对某台机器成立的 → `store/machine/<主机名>/`（不会被挂到别的机器）；
+只对某个 agent 成立的 → `routing.json` 的 `skills` 段限制 client。
 
 ## description 长度规范
 
@@ -204,4 +232,4 @@ description 是唯一常驻上下文的字段，所有 skill 共享这笔预算�
 2. 目录名与 frontmatter `name` 是否逐字符一致
 3. 命名是否符合上面的正则
 4. 是否被改名为 `SKILL.md.disabled`
-5. 该 agent 是否认这个目录（见 local-wgc-machine skill 里的挂载表）
+5. 该 agent 是否认这个目录（见 `local-windows-shell-conventions` 的挂载表）

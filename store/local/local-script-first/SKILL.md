@@ -59,7 +59,7 @@ version: v0.1
 5. **路径用正斜杠**，别用反斜杠 —— bash 里 `\U` `\c` 会被当转义符吃掉
 6. **改动用户文件前先备份**，并告诉用户备份在哪
 
-**本机踩过的坑**（细节见 `local-wgc-machine` 与 `local-workbuddy-quirks`）
+**本机踩过的坑**（细节见 `local-windows-shell-conventions` 与 `local-workbuddy-quirks`）
 
 - `ConvertFrom-Json` 读 UTF-8 会乱码 → 改用 `python -c "import json; ..."`
 - pwsh 工具的输出拿不回来 → 结论写文件，再用 Read 读回

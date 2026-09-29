@@ -3,14 +3,20 @@
 ## 结构
 
 ```
-store/local/   纯本地 skill（Git 跟踪）
-store/fork/    从 GitHub 派生的 skill（含 .upstream 溯源）
-store/cache/   远程 skill 缓存（不进 Git，用完不删）
-routing.json   各 agent 挂载点 + 安装检测规则
-registry.json  远程 skill 清单
+store/local/   跨机器通用的本地 skill（Git 跟踪）
+store/fork/    从 GitHub 派生、且做过本地改动的 skill（含 .upstream 溯源）
+store/cache/   远程 skill 缓存 / 上游原样快照（不进 Git，用完不删）
+store/machine/ 机器专属 skill，一台机器一个目录（按主机名），只挂本机那个
+routing.json   各 agent 挂载点 + 安装检测规则 + 临时主机名别名
+registry.json  远程 skill 清单（含原样快照的溯源信息）
 proposals/     待审批提案（批准后删除）
 scripts/       link / sync（_common.ps1 是共用探测函数）
 ```
+
+**放哪的判断**：换台机器 / 换个 agent 还成立 → `store/local/`；
+只对某台机器成立（磁盘路径、机型、网络实测）→ `store/machine/<主机名>/`；
+只对某个 agent 成立 → `store/local/` + `routing.json` 的 `skills` 段限制 client；
+上游原样快照（不改、直接覆盖更新）→ `store/cache/`。
 
 ## 日常
 
@@ -33,6 +39,10 @@ scripts/       link / sync（_common.ps1 是共用探测函数）
 3. 版本号 `vX.Y`：局部补充 Y+1，结构重写 X+1。只改 frontmatter 一行。
 4. 派生的 `.upstream` 里 `reason` ≤3 行 / 200 字。
 5. `local-<slug>` 是纯本地，`local-<slug>-<reposlug>` 是派生。名字须匹配 `^[a-z0-9]+(-[a-z0-9]+)*$`，且 frontmatter `name` 与目录名一致。
+6. **上游原样快照放 `store/cache/`**，不放 `store/fork/` —— fork 要吃全套本地规范（必须有 `version` 等），
+   而原样快照按定义不该有本地改动。放 cache 还有个好处：`audit.ps1` 对 cache 只查
+   「有没有 SKILL.md / desc 有没有超 1024」，正是原样快照该受的待遇。
+   代价是实体不进 Git，**溯源信息要转录到 `registry.json`**（cache 里的 `.upstream` 会被下次 pull 覆盖）。
 
 ## 跨机器适配（不写死本机事实）
 
@@ -46,6 +56,11 @@ scripts/       link / sync（_common.ps1 是共用探测函数）
 - **没装的 agent 不挂、也不给它建目录**（旧行为是 `enabled` 就建，会在干净机器上凭空造空壳目录）。
 - `detect` 写法：不写 -> 看父目录；写 `[]` -> 不探测永远视为已装；写路径数组 -> 存在才算；`detect_any: true` -> 任一存在即可。
 - 探测结果被上次运行留下的目录污染时（如手工建过空目录），用 `link.ps1 -ListClients` 核对，必要时先清掉残留。
+
+**机器专属信息**（磁盘路径、机型、网络实测）放 `store/machine/<主机名>/`，
+`link.ps1` 只挂与 `%COMPUTERNAME%` 匹配（**大小写不敏感**）的那个，所以不会串台。
+主机名已改但还没重启时（`%COMPUTERNAME%` 仍是旧名），用 `routing.json` 的 `host_aliases` 临时借道，
+**重启后记得删掉那条别名**（`link.ps1` 会提醒）。
 
 ## 挂载现状
 

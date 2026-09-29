@@ -37,7 +37,7 @@ python -m pip install faster-whisper imageio-ffmpeg nvidia-cublas-cu12 nvidia-cu
 **装依赖务必带清华源 `-i`**：默认 PyPI 源在本机会卡在 imageio-ffmpeg(31MB)/cudnn(747MB) 这类大包上不动（实测 10 分钟零进度，只能 kill）。CUDA 两个包合计约 1.3GB，加源后 20 秒装完。长命令挂后台跑。
 
 > 本机 shell 环境（Bash 工具状态、MSYS 与原生程序的路径格式差异、PowerShell 注意点）
-> 见 `local-wgc-machine`，本 skill 不重复。
+> 见 `local-windows-shell-conventions` 与 `local-workbuddy-quirks`，本 skill 不重复。
 
 ## 流程
 

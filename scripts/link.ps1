@@ -53,7 +53,48 @@ foreach ($kind in @("local", "fork")) {
     }
 }
 
-# 远程 skill：registry 里 mount=true 且已缓存的，目录名就是它的 id（不带 local- 前缀）
+# machine 档：store/machine/<主机名>/，只挂本机名匹配的那个
+# 里面的内容是「只对某台机器成立」的事实（磁盘路径、机型、网络实测结果），
+# 所以绝不能挂到别的机器上 —— 那会给出错误信息。
+#
+# 主机名匹配：%COMPUTERNAME% 统一大写返回，而目录名按命名规范是小写，
+# 所以必须用大小写不敏感比较（-ieq），否则 WGC-WORK1-PX 匹不上 wgc-work1-px。
+#
+# host_aliases：临时等价表，把某个主机名指向另一个 machine 目录。
+# 用于「主机名已改、但还没重启」的过渡期 —— 此时 %COMPUTERNAME% 还是旧名，
+# 匹配不到新目录。重启后自然能匹配，届时应把该条删掉（它不会自己失效）。
+$machineEntities = @()
+$hostName = $env:COMPUTERNAME
+$machineDir = Join-Path $root "store\machine"
+$aliasNote = ""
+if (Test-Path $machineDir) {
+    # 解析别名（若配置了）
+    $targetName = $hostName
+    if ($cfg.PSObject.Properties['host_aliases']) {
+        foreach ($ap in $cfg.host_aliases.PSObject.Properties) {
+            if ($ap.Name.StartsWith('_')) { continue }
+            if ($hostName -ieq $ap.Name) {
+                $targetName = $ap.Value
+                $aliasNote = "（经别名 $hostName -> $targetName）"
+                break
+            }
+        }
+    }
+
+    Get-ChildItem $machineDir -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        $dirName = $_.Name
+        # 大小写不敏感比较（Windows 主机名不区分大小写）
+        if ($dirName -ieq $targetName) {
+            if (Test-Path (Join-Path $_.FullName "SKILL.md")) {
+                $machineEntities += [PSCustomObject]@{ Name = $dirName; Target = $_.FullName; Kind = "machine" }
+            }
+        }
+    }
+}
+
+$entities += $machineEntities
+
+# remote skill：registry 里 mount=true 且已缓存的，目录名就是它的 id（不带 local- 前缀）
 $regPath = Join-Path $root "registry.json"
 if (Test-Path $regPath) {
     $reg = Get-Content $regPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -87,6 +128,18 @@ if ($skillClients.Count -gt 0) {
 }
 if ($skipped.Count -gt 0) {
     $report += "跳过（无 SKILL.md，不算 skill）: " + ($skipped -join ", ")
+}
+# 机器档：显示本机主机名和匹配结果，方便确认「哪台的档案被挂上来了」
+if (Test-Path $machineDir) {
+    $allMachineDirs = @(Get-ChildItem $machineDir -Directory -ErrorAction SilentlyContinue | ForEach-Object { $_.Name })
+    if ($allMachineDirs.Count -gt 0) {
+        $matched = @($machineEntities | ForEach-Object { $_.Name })
+        $report += "machine 档: 本机 $hostName -> " +
+            $(if ($matched.Count -gt 0) { "挂载 [" + ($matched -join ", ") + "]" + $aliasNote } else { "无匹配（现有: " + ($allMachineDirs -join ", ") + "）" })
+        if ($aliasNote) {
+            $report += "         ⚠️ 这是临时别名（host_aliases），重启后请删除该条"
+        }
+    }
 }
 
 # -ListClients：只报安装检测结果，供人工核对

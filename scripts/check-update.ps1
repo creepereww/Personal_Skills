@@ -3,9 +3,10 @@
 # 用法：pwsh ~/.skills/scripts/check-update.ps1
 #
 # ⚠️ 网络要求：要能访问 api.github.com（HTTPS 443）。
-#    本机直连 443 不通（见 local-wgc-machine 的「网络」节），所以：
-#      - 在 WorkBuddy 里跑 → 沙箱已注入代理，能通
-#      - 在普通终端跑 → 需要先挂代理，或设好 GITHUB_TOKEN 走别的通道
+#    各机器情况不同，别照搬 —— 查 store/machine/<本机主机名>/ 里的网络实测节：
+#      - 本机能直连 443 → 直接跑
+#      - 不能直连（如家那台）→ 在 WorkBuddy 里跑用沙箱注入的代理；
+#        在普通终端跑要先挂代理，或设 GITHUB_TOKEN 走别的通道
 #
 # 设了 GITHUB_TOKEN 环境变量就用它（提高速率限制、也能少受未登录限制影响）
 

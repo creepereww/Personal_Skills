@@ -28,30 +28,28 @@ function Get-GitExe {
     if ($cmd) { return $cmd.Source }
 
     # 3. 常见安装位置兜底
+    #    注意：**不要在这里写死某台机器的专属路径**。机器专属事实属于
+    #    store/machine/<主机名>/，不该进跟随 Git 的通用脚本。
+    #    真有非标准位置，用 SKILLS_GIT 环境变量覆盖（见上）。
     $candidates = @(
         (Join-Path $env:ProgramFiles "Git\cmd\git.exe"),
         (Join-Path ${env:ProgramFiles(x86)} "Git\cmd\git.exe"),
-        (Join-Path $env:LOCALAPPDATA "Programs\Git\cmd\git.exe"),
-        "D:\Git\cmd\git.exe",
-        # WorkBuddy 自带的 PortableGit：版本号写死会随升级失效，故用通配
-        "C:\Users\$env:USERNAME\.workbuddy\binaries\PortableGit\versions"
-    )
-    foreach ($c in $candidates) {
-        if ($c -like "*\versions") {
-            if (Test-Path $c) {
-                $hit = Get-ChildItem $c -Directory -ErrorAction SilentlyContinue |
-                       Sort-Object Name -Descending |
-                       ForEach-Object { Join-Path $_.FullName "cmd\git.exe" } |
-                       Where-Object { Test-Path $_ } |
-                       Select-Object -First 1
-                if ($hit) { return $hit }
-            }
-            continue
-        }
-        if (Test-Path $c) { return $c }
+        (Join-Path $env:LOCALAPPDATA "Programs\Git\cmd\git.exe")
+    ) | Where-Object { $_ -and (Test-Path $_) }
+    if ($candidates.Count -gt 0) { return $candidates[0] }
+
+    # 4. 宿主自带的 PortableGit：版本号写死会随升级失效，故用通配并取最高版本
+    $portable = Join-Path $env:USERPROFILE ".workbuddy\binaries\PortableGit\versions"
+    if (Test-Path $portable) {
+        $hit = Get-ChildItem $portable -Directory -ErrorAction SilentlyContinue |
+               Sort-Object Name -Descending |
+               ForEach-Object { Join-Path $_.FullName "cmd\git.exe" } |
+               Where-Object { Test-Path $_ } |
+               Select-Object -First 1
+        if ($hit) { return $hit }
     }
 
-    throw "找不到 git。请安装 Git，或设环境变量 SKILLS_GIT 指向 git.exe。"
+    throw "找不到 git。请安装 Git（装了就会进 PATH），或设环境变量 SKILLS_GIT 指向 git.exe。"
 }
 
 # ---------------------------------------------------------------------------

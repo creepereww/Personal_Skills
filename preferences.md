@@ -45,5 +45,5 @@
 ## 环境常识（细节见 skill）
 
 - 本机所有 skill 的单一实体在 `~/.skills`，规则看 `local-skills-hub`
-- 这环境里有些坑只有本机才有，遇到怪问题先查 `local-wgc-machine` 与 `local-workbuddy-quirks`
+- 这环境里有些坑只有本机才有，遇到怪问题先查 `local-windows-shell-conventions`、`local-workbuddy-quirks`，以及本机对应的 machine 档（`store/machine/<主机名>/`）
 <!-- SYNC:END -->

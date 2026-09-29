@@ -14,6 +14,9 @@ proposals/
 __pycache__/
 *.pyc
 
+# Node 依赖（fork 进来的 skill 可能自带 package.json，依赖树不进仓库）
+node_modules/
+
 # skill-creator 之类工具的工作区产物（评测跑批、基准、反馈）
 # 注意：工作区应当放在仓库外，这里是兜底
 *-workspace/

@@ -3,6 +3,13 @@
   "_version": 2,
   "_detect_doc": "每个 client 可写 detect 控制「这台机器装没装」的判定。不写 detect -> 默认看 skills 目录的父目录在不在（装了 agent 就会建自己的配置根）。detect=[] -> 不探测、永远视为已装。detect_any=true -> 多路径任一存在即可。装了才挂，没装跳过，除非跑 link.ps1 时加 -Force。",
 
+  "_machine_doc": "store/machine/<主机名>/ 下每台机器一份档案，link.ps1 只挂与本机 %COMPUTERNAME% 匹配（大小写不敏感）的那个。host_aliases 是临时等价表：把某个主机名指向另一个 machine 目录，用于主机名改了但还没重启的过渡期。用完请删掉对应条目。",
+
+  "host_aliases": {
+    "_comment": "临时：本机主机名已改成 WGC-WORK1-PX 但还没重启，%COMPUTERNAME% 仍是旧名 WGC -> 先借用 wgc-work1-px 的档案。重启后 WGC-WORK1-PX 能直接匹配，此条失效，届时删掉。",
+    "WGC": "wgc-work1-px"
+  },
+
   "clients": {
     "workbuddy": {
       "dir": "%USERPROFILE%\\.workbuddy\\skills",

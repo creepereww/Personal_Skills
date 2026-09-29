@@ -219,6 +219,7 @@ pwsh ~/.skills/scripts/sync-preferences.ps1
 - [ ] opencode 看到（如果装了）
 - [ ] 豆包工作看到（如果装了）
 - [ ] `~/.workbuddy/MEMORY.md` 里有 SYNC 标记块（偏好已分发）
+- [ ] `link.ps1` 输出里有 `machine 档: 本机 <主机名> -> 挂载 [<机器档>]`（这台机器有自己的档案时）
 
 ---
 

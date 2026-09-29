@@ -328,7 +328,7 @@ Get-CimInstance Win32_Process | Where-Object { $_.Name -like 'python*' -and $_.C
 
 ## 8. 本机环境注意
 
-- 本机 shell 环境（Bash 工具状态、MSYS 与原生程序的路径格式差异、PowerShell 注意点）见 `local-wgc-machine`，不在本 skill 重复
+- 本机 shell 环境（Bash 工具状态、MSYS 与原生程序的路径格式差异、PowerShell 注意点）见 `local-windows-shell-conventions`，不在本 skill 重复
 - **CDN 直链下载失败先查代理**：本机常注入 `HTTP_PROXY/HTTPS_PROXY=http://127.0.0.1:<port>`，
   会让 `d.pcs.baidu.com` 等返回 403。可先 `session.trust_env = False` 绕过试试；
   但**绕过仍 403 就是平台侧限制**（如百度 dlink 与 IP 绑定），别在下载上死磕
