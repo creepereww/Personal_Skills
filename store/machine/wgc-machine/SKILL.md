@@ -1,7 +1,7 @@
 ---
 name: wgc-machine
 description: 家里那台电脑（主机名 WGC_MACHINE，机型 MECHREVO KUANGSHI）的本机环境事实 —— 四个客户端装在 D:\APP_MAGIC、HOME 无错位（= USERPROFILE）、已装 ZCode/opencode/豆包工作/QClaw/Codex/Trae 各自在哪、git 用 D:\APP_CLOUD 自装的 2.49、直连 github.com:443 超时需走 SSH 或代理、系统代理 127.0.0.1:26561、Everything 在 图吧工具箱 下且 es.exe 已装。在那台机器上判断"工具在哪、网络通不通、某个 agent 装没装"时看这里。通用规则见 local-windows-shell-conventions。
-version: v0.2
+version: v0.3
 ---
 
 # wgc-machine（家里的电脑）
@@ -65,7 +65,7 @@ version: v0.2
 | ZCode | ✅ | `~/.zcode/`（含 `AGENTS.md`、`cli/`）；技能在公共位 `~/.agents/skills/`（junction） |
 | opencode | ✅ | `~/.config/opencode/`（含 `AGENTS.md` + `skills/`） |
 | 豆包工作 | ✅ | `~/DoubaoWork/`（含 `AGENTS.md` + `skills/`） |
-| QClaw | ✅ | `~/.qclaw/`（有 `skills/`、`memory/`；**没有** `SOUL.md`/`USER.md`/`TOOLS.md`） |
+| QClaw | ✅ | `~/.qclaw/`（有 `skills/`、`memory/`）。`SOUL.md`/`USER.md`/`TOOLS.md` 本就不在配置目录根 —— 它们属于 **agent 工作区**（OpenClaw 默认 `~/.openclaw/workspace/`），本机没见到该工作区 |
 | Codex CLI | ✅ | `~/.codex/`（含 `memories_1.sqlite`、`skills/.system/`；`skills/` 下无自建） |
 | Trae CN | ✅ | `~/.trae-cn/`（含 `builtin/`、`extensions/`） |
 | MarsCode | ❌ | `~/.marscode/` 不存在 |

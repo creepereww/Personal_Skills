@@ -1,7 +1,7 @@
 ---
 name: local-memory-map
 description: 各 agent 的记忆、技能、专家、偏好分别存在哪、能不能统一同步。含通用查法（先分类再定位）、WorkBuddy 的三级记忆与技能/专家三层存储（plugins 各子目录职责、实际加载源看 .skill-list-cache.json）、不能用 junction 统一记忆的四条原因、偏好靠 preferences.md 分发的三条通道，以及按官方文档整理的六类资产（自建技能·用户偏好·内置索引·自建专家·云端记忆·项目记忆）默认目录，覆盖 Claude Code/Codex/Gemini CLI/ZCode/Cursor/Windsurf/Trae/OpenClaw/QClaw/豆包/WorkBuddy，含跨工具公共位 ~/.agents/skills 与各家优先级。触发：记忆在哪、记忆存哪、个性化设置存哪、跨 agent 读记忆、同步记忆、用户偏好放哪、项目记忆怎么找、专家文件在哪、内置技能在哪、skills 默认目录、各 agent 资产位置、Gemini CLI 有没有 skills。机器专属实测见 store/machine/<主机名>/。
-version: v0.9
+version: v0.10
 ---
 
 # 记忆与各类资产的存放地图
@@ -306,19 +306,22 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 > 且不受任何一台机器的 `$HOME` 错位影响。这台机器实际装了什么、有没有偏差 →
 > 见 `store/machine/<主机名>/SKILL.md`。
 > `~` 一律按各家文档的默认 home 解析（Windows 上通常 = `%USERPROFILE%`；但 QClaw/OpenClaw 跟 `$HOME`）。
+>
+> **证据等级**（标在各行备注末尾，别把二手当权威）：
+> ✅ = 本次命中**官方一手文档**；⚠️ = 只有第三方整理 / 社区帖，可能过时；无标记 = 沿用旧记载、**本次未查证**。
 
 ### ① 自建技能（user-level skills）
 
 | agent | 官方默认路径 | 备注 |
 |---|---|---|
-| **Claude Code** | `~/.claude/skills/<name>/SKILL.md` | 项目级 `.claude/skills/`（优先级更高）；另有 Enterprise（托管设置）、嵌套子目录、`--add-dir` 附加目录、插件、claude.ai 账号层。**目录可以是 symlink/junction**：指向同一目标时只加载一次；保留名 `synced`、`anthropic-skills` |
-| **Codex CLI** | `~/.agents/skills/`（**官方推荐的跨 runtime 通用位**）与 `~/.codex/skills/`（本地安装 / 历史版本位）**两者都读**；项目级 `.codex/skills/`、`.agents/skills/`；管理员级 `/etc/codex/skills` | 官方未规定两者优先级；另读内置 System Skills |
-| **Gemini CLI** | `~/.gemini/skills/` 或 `~/.agents/skills/`（**同层内后者优先**）；工作区 `.gemini/skills/` 或 `.agents/skills/` | **有** Agent Skills 机制（开放标准）；优先级 工作区 > 用户 > 扩展；需开 `experimental.skills` |
-| **ZCode** | `~/.zcode/skills/` 与 `~/.agents/skills/`（**后者优先**） | 项目级 `.zcode/skills`、`.agents/skills`；`.zcode/skills` 覆盖同名 |
-| **Cursor** | — | 用 Rules，非 skill（`.cursor/rules/`） |
-| **Windsurf** | — | 用 Rules，非 skill（`.windsurf/rules/`） |
-| **Trae** | 企业版可手动解压到 `.skills` 目录 | 社区版走 Rules |
-| **OpenClaw / QClaw** | `~/.qclaw/skills/`（**跟 `$HOME` 走**，可能不在 `%USERPROFILE%`） | 走 `extraDirs` 配置 |
+| **Claude Code** | `~/.claude/skills/<name>/SKILL.md` | 项目级 `.claude/skills/`（优先级更高）；另有 Enterprise（托管设置）、嵌套子目录、`--add-dir` 附加目录、插件、claude.ai 账号层。**目录可以是 symlink/junction**：指向同一目标时只加载一次；保留名 `synced`、`anthropic-skills` ✅ |
+| **Codex CLI** | `~/.agents/skills/`（**官方用户级位**）；仓库级 `.agents/skills/`（从当前目录向上逐层扫到 repo 根）；管理员级 `/etc/codex/skills`；系统预置在 `~/.codex/skills/.system/` | OpenAI 官方文档（`developers.openai.com/codex/skills`）**只列 `.agents/skills`**；`~/.codex/skills` 见于第三方整理与旧版本，官方未列为推荐 ✅ |
+| **Gemini CLI** | `~/.gemini/skills/` 或 `~/.agents/skills/`（**同层内后者优先**）；工作区 `.gemini/skills/` 或 `.agents/skills/` | **有** Agent Skills 机制（开放标准）；优先级 工作区 > 用户 > 扩展 ✅（「需开 `experimental.skills`」出自中文镜像文档 ⚠️） |
+| **ZCode** | `~/.zcode/skills/` 与 `~/.agents/skills/`（**后者优先**） | 项目级 `.zcode/skills`、`.agents/skills`；`.zcode/skills` 覆盖同名 ⚠️（ZCode 无公开官方文档，结论来自黑盒实测） |
+| **Cursor** | — | 用 Rules，非 skill（`.cursor/rules/`）✅（官方文档目前只讲 Rules，未列 skills 机制） |
+| **Windsurf** | 有 Skills 机制；路径见第三方整理 `.windsurf/skills/`、全局 `~/.codeium/windsurf/skills/`，亦认 `.agents/skills/` | 官方文档已把 Skills 列为一类定制机制，但**未给出路径** ✅（机制）/ ⚠️（路径） |
+| **Trae** | 企业版可手动解压到 `.skills` 目录 | 社区版走 Rules —— **Skills 部分未查证**（官方文档目前只讲 Rules） |
+| **OpenClaw / QClaw** | 共享/managed：`~/.openclaw/skills/`；**工作区 `~/.openclaw/workspace/skills/`（同名冲突时优先级最高）** | ✅ 官方文档；QClaw 实例用 `~/.qclaw/` 前缀（跟 `$HOME` 走）；另可走 `skills.load.extraDirs` 配置 |
 | **WorkBuddy** | `~/.workbuddy/skills/`（自建）；插件技能从 `plugins/marketplaces/...` 加载 | 权威清单看 `.skill-list-cache.json` |
 
 ### ② 用户偏好（全局指引 / rules）
@@ -326,13 +329,13 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 | agent | 官方默认路径 | 形式 |
 |---|---|---|
 | **Claude Code** | `~/.claude/CLAUDE.md` + `~/.claude/rules/*.md` | Markdown，每会话注入 |
-| **Codex CLI** | `~/.codex/AGENTS.md`（覆盖：`AGENTS.override.md`）；项目级 `<repo>/AGENTS.md` | Markdown，32 KiB 上限 |
+| **Codex CLI** | `~/.codex/AGENTS.md`（覆盖：`AGENTS.override.md`）；项目级 `<repo>/AGENTS.md` | Markdown ✅；越靠近工作目录越优先；32 KiB 上限（`project_doc_max_bytes`）⚠️ |
 | **Gemini CLI** | `~/.gemini/GEMINI.md`（可配 `AGENTS.md`） | Markdown，层次加载 |
 | **ZCode** | `~/.zcode/AGENTS.md` | Markdown，只认用户级 + 工作区级 |
-| **Cursor** | `~/.cursor/rules`（**不同步**）/ Settings 里的 User Rules（**云同步**）；项目 `.cursor/rules/` | mdc/md |
-| **Windsurf** | `~/.codeium/windsurf/memories/global_rules.md`（6000 字上限）；项目 `.windsurf/rules/*.md` | Markdown |
-| **Trae** | **全局** `~/.trae-cn/user_rules`（Win：`%userprofile%/.trae-cn/user_rules`）；**项目** `.trae/rules/` | Markdown |
-| **OpenClaw / QClaw** | `~/.qclaw/SOUL.md`（人设）+ `USER.md`（用户信息）+ `TOOLS.md` | Markdown，会话启动自动读 |
+| **Cursor** | `~/.cursor/rules`（**本机、不同步**）/ Settings 里的 User Rules（**账号云同步**）；项目 `.cursor/rules/`；另有团队规则（dashboard 下发） | `.mdc`/`.md` ✅；优先级 团队 > 项目 > 用户；也读 `AGENTS.md`/`CLAUDE.md`；旧 `.cursorrules` 已弃用 |
+| **Windsurf** | 全局 `~/.codeium/windsurf/memories/global_rules.md`（**6000 字符**、always on）；项目 `.devin/rules/*.md`（**当前首选**），`.windsurf/rules/*.md`（legacy fallback，每文件 12000 字符） | Markdown ✅；产品已演进为 Devin Desktop，`.devin/` 优先于 `.windsurf/` |
+| **Trae** | **全局** `~/.trae/user_rules`（国内版 `~/.trae-cn/user_rules`；Win 走 `%userprofile%`）；**项目** `.trae/rules/` | Markdown ✅（`docs.trae.ai/ide/rules`）；项目规则 4 种生效方式，子目录最多三层嵌套 |
+| **OpenClaw / QClaw** | **在「工作区」里**，不在配置目录根：`~/.openclaw/workspace/{AGENTS.md, SOUL.md(人设), IDENTITY.md, USER.md, TOOLS.md, MEMORY.md}` | Markdown，会话启动自动读 ✅；SOUL.md 单文件注入上限 20000 字符（总预算 60000） |
 | **WorkBuddy** | `~/.workbuddy/MEMORY.md`（用户级，我们的脚本写） | Markdown，每会话注入 |
 
 ### ③ 内置技能 / 专家索引（client-managed cache）
@@ -368,7 +371,7 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 | **Cursor** | User Rules 存 Cursor 账号（**云同步**）；`~/.cursor/rules` 本机不同步 | 部分云 |
 | **Windsurf** | 自动 memories 存 `~/.codeium/windsurf/memories/`（workspace 级、**仅本机**） | 本地 |
 | **Trae** | 全局记忆 `~/.trae-cn/memory/user_profile.md`；项目记忆按项目存储 | **本地，不跨机同步** |
-| **OpenClaw / QClaw** | `~/.qclaw/workspace/memory/YYYY-MM-DD.md` + `MEMORY.md` + `lossless/lcm.db`；Dreaming 后台沉淀 | 本地 |
+| **OpenClaw / QClaw** | 工作区 `~/.openclaw/workspace/memory/YYYY-MM-DD.md`（每日日志）+ `MEMORY.md`（长期）；QClaw 另有 `lossless/lcm.db`（它自己的 lossless 记忆库，**非 OpenClaw 官方概念** ⚠️） | 本地 ✅ |
 | **豆包** | 记忆走**云端向量库 + 用户画像**（设置页记忆开关控制） | 云端 |
 
 ### ⑥ 项目记忆（project-scoped）
@@ -376,12 +379,12 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 | agent | 官方默认路径 | 形式 |
 |---|---|---|
 | **Claude Code** | `.claude/agent-memory/<name>/MEMORY.md`；会话记录 `~/.claude/projects/<project>/*.jsonl` | Markdown + jsonl |
-| **Codex CLI** | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`（会话 transcript）；记忆汇总在 `~/.codex/memories/` | jsonl + md |
+| **Codex CLI** | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`（会话 transcript）；记忆汇总在 `~/.codex/memories/` | jsonl + md ⚠️（会话路径来自第三方整理） |
 | **Gemini CLI** | 项目上下文 `./GEMINI.md` 及上级目录（非"记忆"，是指令） | Markdown |
 | **ZCode** | 工作区 `AGENTS.md`（人工）+ 项目记忆（Agent 自动，本机） | Markdown |
 | **Windsurf** | 自动 memories 按 workspace 隔离（`~/.codeium/windsurf/memories/`） | 本地 |
 | **Trae** | 项目记忆按项目路径独立存储 | 本地 |
-| **OpenClaw / QClaw** | `<agentDir>/sessions/`；记忆 `~/.qclaw/workspace/memory/` | jsonl + md |
+| **OpenClaw / QClaw** | 会话 `~/.openclaw/agents/<agent>/sessions/`；记忆在工作区 `memory/` | jsonl + md ✅ |
 | **WorkBuddy** | `<工作区>/.workbuddy/memory/YYYY-MM-DD.md`（**每个工作区一份**） | Markdown 按天追加 |
 
 **一句话规律**：①-④ 是"可搬的资产"（技能/规则/专家/内置缓存），⑥ 是"跟项目走的记录"，
