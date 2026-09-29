@@ -1,7 +1,7 @@
 ---
 name: wgc-work1-px
 description: 公司电脑 WGC-WORK1-PX 的本机环境事实 —— 机型（Lecoo）、HOME 与 %USERPROFILE% 错位（HOME 在 D:\AppData\Roaming\SPB_Data）、git 装在 D:\Git、装了哪些 agent（WorkBuddy/ZCode/QClaw/Codex/MarsCode/Trae，QClaw 数据在 D 盘）、两条磁盘余量、**推送 GitHub 的正确姿势**（github.com:443 时通时断 + schannel 坑：要绕开沙箱代理、用 openssl 后端、GIT_TERMINAL_PROMPT=0 走 GCM 已存凭证、多重试）、Everything 1.4.1.1029 在 D:\ 但没装 es.exe。在这台机器上要判断"某个工具/客户端在哪、网络通不通、怎么 push"时看这里。通用规则（路径格式、junction、命名）见 local-windows-shell-conventions。
-version: v0.3
+version: v0.4
 ---
 
 # wgc-work1-px（公司电脑）
@@ -24,7 +24,7 @@ version: v0.3
 > ⚠️ **HOME 与 USERPROFILE 不一致**是这台的重要事实：`%USERPROFILE%` 指向 C 盘，
 > 但 `HOME` 指向 `D:\AppData\Roaming\SPB_Data`。**有些程序（如 QClaw）跟 `HOME` 走，数据落在 D 盘**；
 > 大多数 agent（WorkBuddy / ZCode / 豆包）跟 `%USERPROFILE%`，落在 C 盘。
-> 查目录时两个都要试。详见 `local-memory-map` 的「$HOME 错位」节。
+> 查目录时两个都要试。通用查法见 `local-memory-map`。
 
 ## 磁盘
 
@@ -57,6 +57,36 @@ version: v0.3
 | Trae CN | ✅ | `C:/Users/cgw06/.trae-cn/`（预置 `builtin/global/skills`） |
 
 > 各处目录的详细机制（记忆形式、是否认公共位）见 `local-memory-map`，本表只记"装没装、在哪"。
+
+## 记忆与 skills 目录（本机实测）
+
+| agent | 位置 | 形式 |
+|---|---|---|
+| WorkBuddy 用户级 | `C:/Users/cgw06/.workbuddy/MEMORY.md` | Markdown（`sync-preferences.ps1` 写入） |
+| WorkBuddy 项目级 | `<工作区>/.workbuddy/memory/YYYY-MM-DD.md` | Markdown，每个工作区一份 |
+| ZCode 全局指引 | `C:/Users/cgw06/.zcode/AGENTS.md` | Markdown（偏好分发目标之一） |
+| ZCode 记忆 | `C:/Users/cgw06/.zcode/cli/db/db.sqlite` | SQLite，**不可直读** |
+| QClaw 记忆 | `D:/AppData/Roaming/SPB_Data/.qclaw/memory/lossless/lcm.db` | SQLite，不可直读 |
+| QClaw 状态 | `D:/AppData/Roaming/SPB_Data/.openclaw/state/openclaw.sqlite` + `identity/` | SQLite + json |
+| Codex CLI | `C:/Users/cgw06/.codex/memories_1.sqlite`（`memories/` 为空目录） | SQLite，不可直读 |
+
+**skills 目录**（哪些是我们的 junction、哪些是自带预置）：
+
+| 目录 | 归属 |
+|---|---|
+| `~/.workbuddy/skills/` | ✅ 我们的 junction → `~/.skills/store` |
+| `~/.agents/skills/` | ✅ 我们的 junction（ZCode 走这个公共位） |
+| `~/.codex/skills/` | 自带 `.system/`（imagegen / openai-docs / plugin-creator） |
+| `~/.marscode/builtin_skills` | 豆包 IDE 预置 |
+| `~/.trae-cn/builtin/global/skills` | Trae CN 预置 |
+| `D:/.../.qclaw/` | 只见到 `memory/`，**没有 skills 目录** |
+
+**其他实测**：
+
+- `~/.codebuddy/` **不存在** —— WorkBuddy 主客户端走 `~/.workbuddy/`，`.codebuddy` 是 CodeBuddy Code 的约定
+- `C:/Users/cgw06/AppData/Local/Doubao/` 存在，但那是**豆包个人版**（只有 User Data），不是「豆包工作」
+- `routing.json` 里 QClaw 那条写的是 `%USERPROFILE%\.qclaw`，**注定探测不到**（它实际在 D 盘、跟 `HOME` 走）。
+  当前 `enabled:false`（不接管）所以无影响；将来若要接管，必须把探测路径改成按 `HOME` 解析
 
 ## 网络
 

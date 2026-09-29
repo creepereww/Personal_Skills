@@ -1,7 +1,7 @@
 ---
 name: wgc-machine
-description: 家里那台电脑（主机名 WGC_MACHINE，机型 MECHREVO KUANGSHI）的本机环境事实 —— 四个客户端装在 D:\APP_MAGIC、git 用 D:\APP_CLOUD 自装的 2.49、直连 github.com:443 超时需走 SSH 或代理、系统代理 127.0.0.1:26561、Everything 在 图吧工具箱 下且 es.exe 已装。在那台机器上判断"工具在哪、网络通不通"时看这里。通用规则见 local-windows-shell-conventions。
-version: v0.1
+description: 家里那台电脑（主机名 WGC_MACHINE，机型 MECHREVO KUANGSHI）的本机环境事实 —— 四个客户端装在 D:\APP_MAGIC、HOME 无错位（= USERPROFILE）、已装 ZCode/opencode/豆包工作/QClaw/Codex/Trae 各自在哪、git 用 D:\APP_CLOUD 自装的 2.49、直连 github.com:443 超时需走 SSH 或代理、系统代理 127.0.0.1:26561、Everything 在 图吧工具箱 下且 es.exe 已装。在那台机器上判断"工具在哪、网络通不通、某个 agent 装没装"时看这里。通用规则见 local-windows-shell-conventions。
+version: v0.2
 ---
 
 # wgc-machine（家里的电脑）
@@ -52,9 +52,30 @@ version: v0.1
 并加了 `hash -r`（改 PATH 顺序必须清 bash 的命令 hash 缓存，否则 `command -v git` 仍指向旧的）。
 **自装 git 升级后若换了路径，记得同步改 shim。**
 
-## 客户端安装位置
+## 客户端安装位置（本机实测）
 
 四个客户端都装在 **`D:\APP_MAGIC\`**。
+
+**`HOME` 无错位**：`$HOME` = `%USERPROFILE%` = `C:\Users\cgw06`，两个变量一致
+（对比公司电脑 `wgc-work1-px`：`HOME` 被重定向到 `D:\AppData\Roaming\SPB_Data`）。
+
+| agent | 装了 | 位置 / 判据 |
+|---|---|---|
+| WorkBuddy | ✅ | `~/.workbuddy/`，技能源 `~/.workbuddy/skills/`（junction → `~/.skills/store`） |
+| ZCode | ✅ | `~/.zcode/`（含 `AGENTS.md`、`cli/`）；技能在公共位 `~/.agents/skills/`（junction） |
+| opencode | ✅ | `~/.config/opencode/`（含 `AGENTS.md` + `skills/`） |
+| 豆包工作 | ✅ | `~/DoubaoWork/`（含 `AGENTS.md` + `skills/`） |
+| QClaw | ✅ | `~/.qclaw/`（有 `skills/`、`memory/`；**没有** `SOUL.md`/`USER.md`/`TOOLS.md`） |
+| Codex CLI | ✅ | `~/.codex/`（含 `memories_1.sqlite`、`skills/.system/`；`skills/` 下无自建） |
+| Trae CN | ✅ | `~/.trae-cn/`（含 `builtin/`、`extensions/`） |
+| MarsCode | ❌ | `~/.marscode/` 不存在 |
+
+**其他实测**：
+
+- **WorkBuddy 技能加载源**：`~/.workbuddy/.skill-list-cache.json` 里 45 条，
+  44 条 `userSettings`（来自我们的 junction）+ 1 条 `plugin`
+- **自建专家**：`~/.workbuddy/plugins/marketplaces/my-experts/` 存在但**为空**（还没有自建专家）
+- **`.codebuddy/`**：存在，但只有 `diagnostics/`、`logs/`，没有 `skills/`、`rules/`
 
 ## 网络（⚠️ 和公司电脑完全相反）
 

@@ -1,7 +1,7 @@
 ---
 name: local-memory-map
-description: 各 agent 的记忆、技能、专家、偏好分别存在哪、能不能统一同步。含本机 $HOME 错位坑（QClaw 跟 HOME 走、在 D 盘；其余多跟 %USERPROFILE%）、WorkBuddy 的记忆（本地文件/云端 profile/个性化 store）、专家包与技能的三层存储、ZCode 的 SQLite 记忆与 skills 公共位、Codex 的 memories sqlite、QClaw 的 SQLite 记忆库。后段按**官方文档**给出各 agent（Claude Code/Codex/Gemini CLI/ZCode/Cursor/Windsurf/Trae/OpenClaw/豆包/WorkBuddy）六类资产（自建技能·用户偏好·内置索引·自建专家·云端记忆·项目记忆）的默认目录。触发：记忆在哪、记忆存哪、个性化设置存哪、跨 agent 读记忆、同步记忆、用户偏好放哪、项目记忆怎么找、专家文件在哪、内置技能在哪、某 agent 装在哪、QClaw 在哪、skills 默认目录、各 agent 资产位置。
-version: v0.8
+description: 各 agent 的记忆、技能、专家、偏好分别存在哪、能不能统一同步。含通用查法（先分类再定位）、WorkBuddy 的三级记忆与技能/专家三层存储（plugins 各子目录职责、实际加载源看 .skill-list-cache.json）、不能用 junction 统一记忆的四条原因、偏好靠 preferences.md 分发的三条通道，以及按官方文档整理的六类资产（自建技能·用户偏好·内置索引·自建专家·云端记忆·项目记忆）默认目录，覆盖 Claude Code/Codex/Gemini CLI/ZCode/Cursor/Windsurf/Trae/OpenClaw/QClaw/豆包/WorkBuddy，含跨工具公共位 ~/.agents/skills 与各家优先级。触发：记忆在哪、记忆存哪、个性化设置存哪、跨 agent 读记忆、同步记忆、用户偏好放哪、项目记忆怎么找、专家文件在哪、内置技能在哪、skills 默认目录、各 agent 资产位置、Gemini CLI 有没有 skills。机器专属实测见 store/machine/<主机名>/。
+version: v0.9
 ---
 
 # 记忆与各类资产的存放地图
@@ -12,8 +12,10 @@ skill 已经统一（`~/.skills` + junction，见 `local-skills-hub`），**记�
 > 也一并收录在本 skill 后半部分 —— 位置和机制放在一起才好查。
 > Windows 通用约定（路径格式、junction、命名）见 `local-windows-shell-conventions`。
 >
-> **两种口径都要会查**：本 skill 前半部分是**本机实测**（含用户这台 `$HOME` 错位的特殊情况）；
-> 后半部分「各 agent 的默认资产位置」是**官方文档口径**（没装的 agent 也能查，不受本机错位影响）。
+> **两种口径要分清**：本 skill 只讲**机制**和**官方文档口径**（换台机器照样成立）。
+> 「这台机器上实际装了什么、`$HOME` 有没有错位」这类**实测偏差**写在
+> `store/machine/<主机名>/SKILL.md`，本文件不假设具体机器 —— 通用 skill 跟随 Git 同步到所有机器，
+> 写死某一台的实况，到别的机器上就变成错误信息（`local-wgc-machine` 犯过这个错，已拆解）。
 
 ## 先分清两种东西
 
@@ -25,71 +27,38 @@ skill 已经统一（`~/.skills` + junction，见 `local-skills-hub`），**记�
 
 **别把 AGENTS.md 当记忆**——它是规则文件，不是流水账。
 
-## ⚠️ 本机 `$HOME` 错位（先看这条）
+## 查之前先看：`~` 到底展开成什么
 
-本机 `HOME=/d/AppData/Roaming/SPB_Data`，**应用的真实配置目录因此分成了两派**：
+**各 agent 用的环境变量并不统一**：多数（ZCode、WorkBuddy、豆包）走 `%USERPROFILE%`，
+**QClaw/OpenClaw 跟 `$HOME` 走**。一旦这台机器的 `HOME` 与 `USERPROFILE` 不一致
+（被数据重定向工具改过），同一个 `~/.qclaw` 就会落在两个完全不同的盘上。
 
-| agent | `~` 展开成 | 实际用的 |
-|---|---|---|
-| **ZCode** | `D:/AppData/Roaming/SPB_Data/.zcode`（空壳，只有 v2/workspace/plugin-workspace） | `C:/Users/cgw06/.zcode`（**有 AGENTS.md + cli/**）→ 走 `%USERPROFILE%` |
-| **QClaw** | `D:/AppData/Roaming/SPB_Data/.qclaw` + `.openclaw`（**真有内容！**） | **就是这里** → 走 `HOME` |
-| opencode | `D:/AppData/Roaming/SPB_Data/.config/opencode`（不存在） | — |
-| 豆包工作 | `D:/AppData/Roaming/SPB_Data/DoubaoWork`（不存在） | — |
+→ **查 agent 目录时两个变量都要试**。只查 `%USERPROFILE%` 会漏掉 QClaw，只查 `HOME` 会漏掉其余几个。
 
-**根因**：`HOME` 被设成了 `SPB_Data`（SPB = 某种数据重定向工具）。
+各台机器上 `HOME` 到底指哪、谁错位、错到哪个盘 → 见 `store/machine/<主机名>/SKILL.md`。
 
-**关键结论**：**各 agent 用哪个变量并不统一** ——
-- 大多数（ZCode、WorkBuddy、豆包）走 `%USERPROFILE%` = `C:\Users\cgw06`
-- **QClaw 走 `HOME`** = `D:\AppData\Roaming\SPB_Data` ← **所以它的东西在 D 盘**
+## 怎么查某个 agent 的记忆在哪
 
-→ 查 agent 目录时**两个变量都要试**：先用 `C:/Users/cgw06/...`，找不到再试 `D:/AppData/Roaming/SPB_Data/...`。
-**只查 `%USERPROFILE%` 会漏掉 QClaw，只查 `HOME` 会漏掉 ZCode。**
+按这个顺序走，别靠记忆：
 
-`routing.json` 里用 `%USERPROFILE%` 是对的（脚本走 Windows 环境变量），但由于上表，
-QClaw 那条的路径**注定探测不到**（见下）——这是已知的、已接受的偏差。
+1. **判断它属于六类资产中的哪一类** → 查文末官方口径表（先分清是「记忆」还是「指引」还是「缓存」）
+2. **取该 agent 的官方默认路径** → 同表
+3. **两个变量都试**：`%USERPROFILE%` 与 `$HOME`（见上节）
+4. **SQLite 类读不了** —— ZCode `db.sqlite`、QClaw `lcm.db`、Codex `memories_1.sqlite`
+   都不能直接读文本，只能走该 agent 自己的检索通道
 
-## 各 agent 的记忆位置（实测，本机）
+**WorkBuddy 的项目记忆是分散的**：每个工作区各自一份 `<工作区>/.workbuddy/memory/YYYY-MM-DD.md`，
+互不可见。要找某个项目当时的过程记录，**得先定位工作区目录**。
 
-| agent | 位置 | 形式 | 可读吗 |
-|---|---|---|---|
-| **WorkBuddy** 用户级 | `~/.workbuddy/MEMORY.md` | Markdown | ✅ 直接读 |
-| **WorkBuddy** 项目级 | `<工作区>/.workbuddy/memory/YYYY-MM-DD.md` | Markdown，按天追加 | ✅ 直接读（**每个工作区一份**） |
-| **WorkBuddy** 云端 profile | `~/.workbuddy/memory/<uid>_memory.md` | 服务端生成、**只读镜像** | ✅ 可读，但改本地会被覆盖 |
-| **ZCode** | `C:/Users/cgw06/.zcode/cli/db/db.sqlite` | **SQLite** | ❌ 不能直读 |
-| **ZCode** 全局指引 | `C:/Users/cgw06/.zcode/AGENTS.md` | Markdown | ✅（我们脚本分发的偏好就在这） |
-| **QClaw**（★ 跟 `HOME` 走，不在 `%USERPROFILE%`！） | `D:/AppData/Roaming/SPB_Data/.qclaw/memory/lossless/lcm.db` | **SQLite** | ❌ 不能直读，要走 QClaw 自己 |
-| **QClaw** 状态 | `D:/AppData/Roaming/SPB_Data/.openclaw/state/openclaw.sqlite` + `identity/{device,device-auth}.json` | SQLite + json | ❌ |
-| **Codex CLI** | `C:/Users/cgw06/.codex/memories_1.sqlite` + `memories/`（空目录） | **SQLite** | ❌ 不能直读 |
-| **opencode** | **本机未装**（`~/.config/opencode` 不存在） | — | — |
-| **豆包工作** | **本机未装**（`~/DoubaoWork`、`%LOCALAPPDATA%\DoubaoWork` 均不存在） | — | — |
+## 怎么查某个 agent 的 skills 目录
 
-> ⚠️ **订正**：此前记的「豆包工作装在 `%LOCALAPPDATA%\DoubaoWork\...\.doubaowork\agent_mode\workspace\`（深 8 层）」
-> 是**家里那台**的情况 —— 本机（公司电脑）**没装豆包工作**。
-> 另：`C:/Users/cgw06/AppData/Local/Doubao/` 存在，但那是**豆包个人版**（只有 User Data），不是「豆包工作」。
-
-**WorkBuddy 的项目记忆是分散的**：每个工作区各自一份 `.workbuddy/memory/`，互不可见。
-要找某个项目当时的过程记录，得先定位工作区目录。
-
-## 各 agent 的 skills 目录（本机实测）
-
-| agent | skills 目录 | 实体/形式 | 认 `~/.agents/skills` 公共位 |
-|---|---|---|---|
-| **WorkBuddy** | `C:/Users/cgw06/.workbuddy/skills` | junction → `~/.skills/store` | ❌ |
-| **ZCode** | `C:/Users/cgw06/.agents/skills`（公共位） | junction → `~/.skills/store`，本机 15 个 | ✅ **唯一认的** |
-| **Codex CLI** | `C:/Users/cgw06/.codex/skills/` | 自带 `.system/`（imagegen / openai-docs / plugin-creator 预置），非我们的 junction | ❌ |
-| **MarsCode（豆包 IDE）** | `C:/Users/cgw06/.marscode/builtin_skills`（预置） | 预置，非 junction | ❌ |
-| **Trae CN** | `C:/Users/cgw06/.trae-cn/builtin/global/skills`（预置） | 预置 | ❌ |
-| **QClaw** | `D:/AppData/Roaming/SPB_Data/.qclaw/`（**只见到 `memory/`，没有 skills 目录**） | 走 `extraDirs` 配置，不建 junction | ❌（`routing.json` 里已 `enabled:false`，不接管） |
-| **opencode** | 本机未装 | — | — |
-| **豆包工作** | 本机未装 | — | — |
-
-**要点**：本机只有 **WorkBuddy 和 ZCode** 挂了我们的 junction。`.codex`/`.marscode`/`.trae-cn`
-那些 skills 目录是**它们自带的预置技能**，不是我们的仓库内容，别去动。
-
-**注意 `routing.json` 里 QClaw 那条探测不到**：它写的是 `%USERPROFILE%\.qclaw`，
-但 QClaw 实际在 `D:\AppData\Roaming\SPB_Data\.qclaw`（跟 `HOME` 走）。
-好在它 `enabled:false`（用户已决定不接管），所以**这个偏差目前无影响**——
-但若将来要接管 QClaw，必须把路径改成按 `HOME` 解析，否则永远探测不到。
+1. 官方默认路径见文末表①。**跨工具公共位 `~/.agents/skills`** 已被 Codex / Gemini CLI / ZCode 采用 ——
+   一个 junction 挂一次就能被多家同时认领（各家优先级不同，见表①备注）
+2. **装没装这个 agent**：本机看 `store/machine/<主机名>/SKILL.md`，或跑
+   `~/.skills/scripts/link.ps1 -ListClients`（它会逐个报探测判据）
+3. **WorkBuddy 实际从哪加载**：不看目录名，看 `~/.workbuddy/.skill-list-cache.json`（见下）
+4. `.codex/skills/.system/`、`.marscode/builtin_skills`、`.trae-cn/builtin/global/skills`
+   这类是**它们自带的预置技能**，不是我们的仓库内容，别去动
 
 **ZCode 的 CLI 是 Claude Code 系**（认 `claude-plugins-official` 市场、用 `~/.zcode/cli/plugins/`
 的市场-缓存-已装三层结构），和 WorkBuddy 的插件机制形似但**不通用**。
@@ -184,8 +153,9 @@ WorkBuddy 是 CodeBuddy 系，其**代码开发模式**会加载 CodeBuddy Code 
 **记忆加载顺序**（官方）：用户级 `CODEBUDDY.md` → 用户级 `rules/*.md` → 项目级 `CODEBUDDY.md`（向上递归）
 → 项目级 `.codebuddy/rules/*.md` → 项目本地 `CODEBUDDY.local.md` → 子目录 `CODEBUDDY.md`。
 
-⚠️ 本机（公司电脑）实测**没有** `~/.codebuddy/` 目录 —— 说明这套是 CodeBuddy Code 的约定，
-WorkBuddy 主客户端走的是 `~/.workbuddy/` 那套。别混淆。
+⚠️ 实测 `~/.codebuddy/` 在有的机器上**不存在**、有的机器上只有 `diagnostics/` `logs/`
+（WorkBuddy 主客户端走 `~/.workbuddy/` 那套，`.codebuddy` 是 CodeBuddy Code 的约定，别混淆）。
+具体有没有、里面有什么 → 见 `store/machine/<主机名>/SKILL.md`。
 
 ## WorkBuddy 技能：到底从哪个目录加载（★ 最容易搞错）
 
@@ -228,7 +198,7 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 
 1. **是文件不是目录** —— `~/.workbuddy/MEMORY.md` 是文件，junction 只对目录生效；
    文件级只能 hardlink/symlink，而 **hardlink 会被"删除重建"破坏**（agent 写文件经常先删后建）
-2. **路径随项目变** —— 项目记忆在 `<工作区>/.workbuddy/memory/`，工作区有 8 个，固定链接覆盖不了
+2. **路径随项目变** —— 项目记忆在 `<工作区>/.workbuddy/memory/`，工作区有几个就有几份，固定链接覆盖不了
 3. **路径写死在 agent 的系统机制里** —— 我们改不了它们的系统提示
 4. **WorkBuddy 没有全局指引通道** —— 它只读项目目录的 AGENTS.md，连"换个地方写记忆"这条路都没有
 
@@ -279,7 +249,7 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 
 ## ⚠️ 找东西的深度陷阱（真踩过）
 
-有些路径**深达 8 层**，例如豆包的：
+有些路径**深达 8 层**，例如豆包工作的（某台机器上的实测，别台层数可能不同）：
 
 ```
 %LOCALAPPDATA%\DoubaoWork\User Data\Default\.doubaowork\agent_mode\workspace\.user_skills\
@@ -293,7 +263,7 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 1. **深度给足**（≥ 10），或干脆不限深度
 2. **优先用文件名特征搜**（比搜目录名容易命中）
 3. 装了 **Everything** 就用它 —— 毫秒级，且有 `es.exe` CLI 可脚本调用
-   （本机的 Everything 快捷方式指向已失效路径 `D:\APP_COMMON\图吧工具箱202502\...`，要用得重装或补 `es.exe`）
+   （Everything 装在哪、`es.exe` 在不在 PATH → 见 `store/machine/<主机名>/SKILL.md`，别照抄别台的路径）
 4. 常规目录搜不到时，**问用户**比继续猜快 —— 他一句"路径在 X"就解决了
 
 ### 豆包 `.user_skills` 的自动恢复机制（实测）
@@ -332,22 +302,23 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 
 ## 各 agent 的默认资产位置（★ 官方文档口径）
 
-> 下面这张表**按各家官方文档的默认路径**整理（不是本机实测）—— 所以**没装的 agent 也能查**，
-> 且不受本机 `$HOME` 错位影响。本机实测（含用户的错位情况）见上文各表。
+> 下面这张表**按各家官方文档的默认路径**整理 —— 所以**没装的 agent 也能查**，
+> 且不受任何一台机器的 `$HOME` 错位影响。这台机器实际装了什么、有没有偏差 →
+> 见 `store/machine/<主机名>/SKILL.md`。
 > `~` 一律按各家文档的默认 home 解析（Windows 上通常 = `%USERPROFILE%`；但 QClaw/OpenClaw 跟 `$HOME`）。
 
 ### ① 自建技能（user-level skills）
 
 | agent | 官方默认路径 | 备注 |
 |---|---|---|
-| **Claude Code** | `~/.claude/skills/<name>/SKILL.md` | 项目级 `.claude/skills/`（优先级更高） |
-| **Codex CLI** | `~/.codex/skills/`（部分版本也认 `~/.agents/skills`） | 跨工具公共位 |
-| **Gemini CLI** | — | 无 skill 机制（`settings.context.fileName` 可配 `AGENTS.md`/`GEMINI.md`） |
+| **Claude Code** | `~/.claude/skills/<name>/SKILL.md` | 项目级 `.claude/skills/`（优先级更高）；另有 Enterprise（托管设置）、嵌套子目录、`--add-dir` 附加目录、插件、claude.ai 账号层。**目录可以是 symlink/junction**：指向同一目标时只加载一次；保留名 `synced`、`anthropic-skills` |
+| **Codex CLI** | `~/.agents/skills/`（**官方推荐的跨 runtime 通用位**）与 `~/.codex/skills/`（本地安装 / 历史版本位）**两者都读**；项目级 `.codex/skills/`、`.agents/skills/`；管理员级 `/etc/codex/skills` | 官方未规定两者优先级；另读内置 System Skills |
+| **Gemini CLI** | `~/.gemini/skills/` 或 `~/.agents/skills/`（**同层内后者优先**）；工作区 `.gemini/skills/` 或 `.agents/skills/` | **有** Agent Skills 机制（开放标准）；优先级 工作区 > 用户 > 扩展；需开 `experimental.skills` |
 | **ZCode** | `~/.zcode/skills/` 与 `~/.agents/skills/`（**后者优先**） | 项目级 `.zcode/skills`、`.agents/skills`；`.zcode/skills` 覆盖同名 |
 | **Cursor** | — | 用 Rules，非 skill（`.cursor/rules/`） |
 | **Windsurf** | — | 用 Rules，非 skill（`.windsurf/rules/`） |
 | **Trae** | 企业版可手动解压到 `.skills` 目录 | 社区版走 Rules |
-| **OpenClaw / QClaw** | `~/.qclaw/skills/`（本机实例落 `$HOME` 下） | 走 `extraDirs` 配置 |
+| **OpenClaw / QClaw** | `~/.qclaw/skills/`（**跟 `$HOME` 走**，可能不在 `%USERPROFILE%`） | 走 `extraDirs` 配置 |
 | **WorkBuddy** | `~/.workbuddy/skills/`（自建）；插件技能从 `plugins/marketplaces/...` 加载 | 权威清单看 `.skill-list-cache.json` |
 
 ### ② 用户偏好（全局指引 / rules）
