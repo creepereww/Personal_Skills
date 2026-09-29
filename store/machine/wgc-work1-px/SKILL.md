@@ -84,25 +84,28 @@ version: v0.3
 2. **`http.sslBackend=schannel`（Git for Windows 默认）在本机会报**
    `schannel: server closed abruptly (missing close_notify)`。→ 要改用 **openssl** 后端。
 3. **`credential.helper` 默认是 `helper-selector`**（来自 WorkBuddy PortableGit 的 system gitconfig），
-   非交互环境下会**卡住等 GUI 选凭证**（表现为 push 挂起，直到 120s 超时被 SIGTERM）。
-   → 但 **GCM 里已存了凭证**（`git-credential-manager get` 能取到 `creepereww` + token），
-   所以配 `GIT_TERMINAL_PROMPT=0` 即可让它用已存凭证、不再弹窗。
-4. `github.com:443` 本身**时通时断** —— 一次不行就**多重试几次**（实测第 4 次成功）。
+   非交互环境下会**卡住等 GUI 选凭证**（表现为 push 挂起，直到 120s 超时被 SIGTERM）；
+   即使绕开它，也可能报 `could not read Username for 'https://github.com': terminal prompts disabled`。
+   → 必须**显式指定 GCM 当凭证助手**。GCM 里**已存凭证**（`creepereww` + token，可用
+   `echo -e "protocol=https\nhost=github.com\n" | /mingw64/bin/git-credential-manager get` 取到）。
+4. `github.com:443` 本身**时通时断** —— 一次不行就**多重试几次**（实测第 2~4 次才成功）。
 
 **可用命令**（一次跑通；不行就重试）：
 ```bash
 cd /c/Users/cgw06/.skills
-env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY \
-  GIT_TERMINAL_PROMPT=0 git -c http.sslBackend=openssl push origin master
+env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY GIT_TERMINAL_PROMPT=0 \
+  git -c credential.helper= -c credential.helper="/mingw64/bin/git-credential-manager" \
+      -c http.sslBackend=openssl push origin master
 ```
 
-**永久固化**（免得每次敲）—— 对仓库设 openssl 后端即可，代理和凭证按上面加：
+**永久固化**（免得每次敲这么长 —— 已对本仓库设好）：
 ```bash
 git config http.sslBackend openssl
+git config credential.helper /mingw64/bin/git-credential-manager
 ```
+之后只要绕开代理即可：`env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY git push`
 
 > `git-credential-manager` 路径：`/mingw64/bin/git-credential-manager`（Git for Windows 自带）。
-> 查有没有存凭证：`echo -e "protocol=https\nhost=github.com\n" | git-credential-manager get`。
 
 ## Everything / es
 
