@@ -48,6 +48,22 @@
       "_detect_note": "豆包工作会建 ~/DoubaoWork 配置根",
       "note": "豆包工作的技能根目录（黑盒实测确认可识别）"
     },
+    "qoder": {
+      "dir": "%USERPROFILE%\\.qoder\\skills",
+      "mode": "junction",
+      "enabled": true,
+      "detect": ["%USERPROFILE%\\.qoder"],
+      "_detect_note": "国际版配置根。skills 目录默认不预建，但配置根 ~/.qoder 存在即说明装过（父目录判据成立）",
+      "note": "官方确认用户级 ~/.qoder/skills/{name}/SKILL.md（docs.qoder.com/cli/Skills）。同名时用户级覆盖项目级，首次 link 会自动建 skills/"
+    },
+    "qoder-cn": {
+      "dir": "%USERPROFILE%\\.qoder-cn\\skills",
+      "mode": "junction",
+      "enabled": true,
+      "detect": ["%USERPROFILE%\\.qoder-cn"],
+      "_detect_note": "CN 版（阿里云 Lingma）配置根是 ~/.qoder-cn，与国际版不同；两条分开注册，没装的那条自动跳过",
+      "note": "与国际版是两条产品线，目录不同，别混。本机装的是国际版，这条会被自动跳过"
+    },
     "qclaw": {
       "dir": "%USERPROFILE%\\.qclaw\\skills",
       "mode": "extraDirs",
@@ -59,7 +75,7 @@
   },
 
   "defaults": {
-    "clients": ["workbuddy", "zcode", "opencode", "doubao"],
+    "clients": ["workbuddy", "zcode", "opencode", "doubao", "qoder", "qoder-cn"],
     "comment": "默认把 store 里全部 skill 挂到这些 client。要裁剪请改 skills 段。"
   },
 
