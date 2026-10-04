@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
 description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时。含授权规则：完善中（v0.x）可直接改并回报，已完善（v1.0+）必须先确认或写 proposals/。
-version: v0.10
+version: v0.11
 ---
 
 # Skills Hub
@@ -154,8 +154,10 @@ pwsh ~/.skills/scripts/sync-preferences.ps1     # 分发偏好（sync.ps1 不含
 
 ## 内容要分清"跨 agent 通用"还是"某个 agent 专属"
 
-skill 是**一份实体挂给所有已安装 agent** 的（`routing.json` 的 `defaults.clients` 列了 4 个）。所以写之前先问一句：
+skill 是**一份实体挂给所有已安装 agent** 的（名单见 `routing.json` 的 `defaults.clients`）。所以写之前先问一句：
 **换成另一个 agent 来读，这段还有用吗？**
+
+> 别在文档里写死这个名单的数量 —— 新 agent（如 Qoder）接入后会变，看 `routing.json` 才是准的。
 
 - **通用**（路径格式、junction 用法、目录位置、机器坐标…）→ 留在 skill 里
 - **只对某个 agent 成立** → **拆出去**单独建 skill，并在 `routing.json` 里把它限制给那个 agent：
@@ -174,7 +176,7 @@ skill 是**一份实体挂给所有已安装 agent** 的（`routing.json` 的 `d
 **反例（真踩过，两次同源）**：`local-wgc-machine`（已拆解）犯过两次同类错误 ——
 
 1. **按 agent 混装**：里面塞了一半 WorkBuddy 宿主特有的东西（工具层输出拿不到、安全策略、沙箱代理），
-   而它挂给 4 个 agent —— ZCode / opencode 读到的全是"WorkBuddy 的毛病"，纯噪音甚至误导。
+   而它挂给了所有已安装 agent —— ZCode / opencode / Qoder 读到的全是"WorkBuddy 的毛病"，纯噪音甚至误导。
    后来拆出 `local-workbuddy-quirks`（只挂 WorkBuddy）才算干净。
 2. **按机器混装**：它同时标着「本机 WGC_MACHINE」又住在跟随 Git 的 `store/local/` 里，
    于是公司电脑上读到的机型、磁盘、git 路径、网络结论**全是家那台的** —— 其中「github.com:443 超时」
