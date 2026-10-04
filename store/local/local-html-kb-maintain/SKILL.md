@@ -139,6 +139,94 @@ io.open(P, 'w', encoding='utf-8').write(s)
    （曾把整节插进 `<summary>`，被 `display:flex` 压成竖排）。
 9. **向某章新增内容前先 grep 该章现有卡片**，同名词合并而非并存
    （「骑马抽」曾同时存在于表格行和卡片，且口径打架）。
+10. **删嵌套块后必须闭环验证**：重跑重复检测，确认「重复段落 / 重复列表项 = 0 组」，
+    而不是只看脚本自己打印的"已删除 N 条"。
+
+## 删除内容的安全做法（血泪教训）
+
+**删嵌套 HTML 块绝对不要用跨块正则。** 曾用
+`<div class="callout warn">….*?</div>\s*</div>` 删一个提醒块，
+非贪婪匹配**吃掉了紧随其后的另一个 callout**，产出游离 `</details>`、标签失衡。
+正确做法二选一：
+
+```python
+# A) 同级简单标签：str.find 精确定位
+u1 = s.find('<ul>', k); u2 = s.find('</ul>', u1) + 5
+seg = s[u1:u2]; assert seg.count('<li') == 5   # 先核对内容再删
+
+# B) 任意嵌套：用 div 深度配对求块尾
+def match_div(s, start):
+    depth = 0; i = start
+    pat = re.compile(r'<div\b[^>]*>|</div>')
+    while True:
+        m = pat.search(s, i)
+        if not m: return -1
+        if m.group(0) == '</div>':
+            depth -= 1
+            if depth == 0: return m.end()
+        else: depth += 1
+        i = m.end()
+```
+
+**删之前必须证明"保留的那份是完整的"**：定位到重复项后，先断言另一处确实覆盖了全部条目，
+再删。**校验不过立即回滚**（从带时间戳备份恢复，重跑已验证安全的脚本），不要在坏状态上继续叠加修改。
+
+## 字符卫生检查（已内置进 validate_html.py 第 5 项）
+
+写入中文文案时最容易混进两类脏字符，**肉眼极难发现**，必须靠脚本拦：
+
+| 症状 | 排查 |
+|---|---|
+| **乱码 `�`（U+FFFD）** | 编码在写入前就损坏了。`grep -c $'\ufffd' file.html`，必须为 0 |
+| **混入英文单词** | 写文案时手滑。如「沙发塌陷 almost 都是填充层的问题」「清洁死角 forever」 |
+
+`validate_html.py` 现在会自动检查：替换字符 `�`、异常控制符，并统计正文西文词数。
+**西文词多是正常的**（Mesh / ZigBee / MPa / ENF / PVC / Fiber to The Room / Home Assistant 等术语），
+但看到**自然语言单词**（the / almost / forever / best / clean）就要警惕。
+
+**修复时必须同时改源脚本**，否则重跑会再次生成同样的脏字符
+（`装修知识大全.html` 与 `_figs/add_*.py` 要成对修）。
+
+## 信息零丢失验证（任何内容改动都要做，用户明确要求）
+
+改 HTML 前先存全文可见文本，改完逐字对比：
+
+```python
+def text_of(x):
+    x = re.sub(r'<(script|style)[^>]*>.*?</\1>', ' ', x, flags=re.S)
+    return re.sub(r'\s+', '', re.sub(r'<[^>]+>', '', x))
+TXT_BEFORE = text_of(s)
+# ... 改动 ...
+assert text_of(s) == TXT_BEFORE        # 移动/重排类：必须完全相等
+```
+
+- **移动、重排、改标签类**改动 → 必须**逐字相等**，差一点就是内容复制/丢失。
+- **删除类**改动 → 额外断言"被删内容已在别处存在"或"本就无信息量"。
+- 这道检查**成本极低、价值极高**：本项目靠它连续拦下两次「只复制未删除」的 bug
+  （一次让内容翻倍、一次让封阳台窗那组 386 字重复出现），避免坏版本交付。
+
+## 块嵌套会让「紧邻判断」失效
+
+用 `s[前块结束 : 后块开始].strip() == ''` 判断两个块是否紧邻时，
+**若存在嵌套，前块结束位置 > 后块开始位置，反向切片返回空串 → 误判为紧邻**，
+随后按 `s[:a] + X + s[b:]` 插入就会把整段内容复制一遍（本项目实测多出 370 字）。
+必须加守卫：
+
+```python
+pairs = [(a, b) for a, b in raw if a < b]     # 排除嵌套
+nested = len(raw) - len(pairs)                # 单独统计嵌套数，别默默吞掉
+```
+本文档已知有 **1 处 callout 嵌套**（warn 内套 tip「✅ 四步封死渗水通道」），待查是否有意为之。
+
+## 分析已有内容时的两个陷阱
+
+1. **别用固定窗口截取元素文本**。用 `blk[m.end():m.end()+150]` 打印每个 `<p>` 的"开头 150 字"，
+   会让**每段都显示出下一段的开头**，看起来像"段落被逐句切碎"的假象。
+   正确做法是按元素边界切片取完整内容。教训来源：我据此误判 c12「碎片化」，回读原始 HTML 证实结构完全正常。
+2. **CSS 规则归属不能只靠正则推断**。`.ctable td:nth-child(3){white-space:nowrap}` 静态看着像在 @media 内，
+   jsdom 实测是全局生效；而 `td:nth-child(n+5){display:none}` 静态看着像全局泄漏，**实测证伪**。
+   涉及 display/white-space 等关键样式，**用 jsdom `getComputedStyle` 实测**，别猜。
+   （注：jsdom 不解析 CSS 变量 `var()`，涉及 var 的属性读不出真值，只能验非 var 属性。）
 
 ### 常用校验正则（临时查一下用）
 
@@ -259,10 +347,13 @@ titles = {m.group(1) for m in re.finditer(r'<section class="chapter" id="(c\d+)"
 - `match_tag_pair` 里源码写 `rf"<{tag}\\\\b"` 会变字面 `\\\\b` 匹配不到嵌套 `<div>`，源码须写单反斜杠 `\\b`。
 - 章节对调的断言应为 `s1 < e1 <= s2 < e2`，写成 `s2 < e1` 会误判。
 - agent-browser 在本机 daemon 起不来（SIGTERM），超时不要恋战，改用 jsdom 探针。
-- **本机已验证的绝对路径**（脚本里写死，别用 `python` / `node` 裸命令）：
+- **本机已验证的绝对路径**（别用 `python` / `node` 裸命令）：
   Python `C:\Users\cgw06\.workbuddy\binaries\python\versions\3.13.12\python.exe`；
-  Node `C:\Users\cgw06\.workbuddy\binaries\node\versions\22.22.2-3\node.exe`；
-  jsdom 探针 `C:\Users\cgw06\.workbuddy\binaries\node\workspace\jsdom_probe.js`。
+  jsdom 探针 `C:\Users\cgw06\.workbuddy\binaries\node\workspace\jsdom_probe.js`；
+  **Node 路径千万别硬编码版本号**：`versions/current` 是**存版本号的文本文件**（内容如 `22.22.2-3`），
+  **不是目录**，拼成 `current/node.exe` 会失效。正确写法是读该文件得到版本号再拼
+  `versions/<版本号>/node.exe`，读不到再 glob `versions/*/node.exe`。
+  硬编码曾让 `_figs/validate_html.py` 的 JS 语法项报 `FileNotFoundError`——表象像 HTML 出问题，实为脚本找不到 node。
 - **TOC / 悬浮按钮脚本必须独占一个 `<script>`**：全文共 3 块 script，目录生成（`cleanTitle`）与折叠开合状态机在同一块内，
   任一依赖报错就是整块 `ReferenceError`，症状是「目录点不开 / 悬浮按钮无反应 / 整页交互全失效」。
   改任何 JS 后必须跑 jsdom 探针确认 `window.onerror` 为 0。

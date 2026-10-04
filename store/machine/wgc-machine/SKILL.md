@@ -1,7 +1,7 @@
 ---
 name: wgc-machine
-description: 家里那台电脑（主机名 WGC_MACHINE，机型 MECHREVO KUANGSHI）的本机环境事实 —— 四个客户端装在 D:\APP_MAGIC、HOME 无错位（= USERPROFILE）、已装 ZCode/opencode/豆包工作/QClaw/Codex/Trae 各自在哪、git 用 D:\APP_CLOUD 自装的 2.49、直连 github.com:443 超时需走 SSH 或代理、系统代理 127.0.0.1:26561、Everything 在 图吧工具箱 下且 es.exe 已装。在那台机器上判断"工具在哪、网络通不通、某个 agent 装没装"时看这里。通用规则见 local-windows-shell-conventions。
-version: v0.3
+description: 家里那台电脑（主机名 WGC_MACHINE，机型 MECHREVO KUANGSHI）的本机环境事实 —— 四个客户端装在 D:\APP_MAGIC、HOME 无错位（= USERPROFILE）、已装 ZCode/opencode/豆包工作/QClaw/Codex/Trae/Qoder 各自在哪、git 用 D:\APP_CLOUD 自装的 2.49、直连 github.com:443 超时需走 SSH 或代理、系统代理 127.0.0.1:26561、Everything 在 图吧工具箱 下且 es.exe 已装。在那台机器上判断"工具在哪、网络通不通、某个 agent 装没装"时看这里。通用规则见 local-windows-shell-conventions。
+version: v0.4
 ---
 
 # wgc-machine（家里的电脑）
@@ -68,7 +68,26 @@ version: v0.3
 | QClaw | ✅ | `~/.qclaw/`（有 `skills/`、`memory/`）。`SOUL.md`/`USER.md`/`TOOLS.md` 本就不在配置目录根 —— 它们属于 **agent 工作区**（OpenClaw 默认 `~/.openclaw/workspace/`），本机没见到该工作区 |
 | Codex CLI | ✅ | `~/.codex/`（含 `memories_1.sqlite`、`skills/.system/`；`skills/` 下无自建） |
 | Trae CN | ✅ | `~/.trae-cn/`（含 `builtin/`、`extensions/`） |
+| **Qoder** | ✅ | `~/.qoder/`（**国际版**；`~/.qoder-cn` 不存在 → 不是 CN 版）。项目落在 `~/Documents/Qoder/2026-10-0x-<hash>/`。详见下节 |
 | MarsCode | ❌ | `~/.marscode/` 不存在 |
+
+### Qoder 本机实测（2026-10-04）
+
+装的是**国际版**（目录 `~/.qoder/`）。默认状态**全部与官方口径一致** —— 官方说"需自己创建"的，本机就都没有：
+
+| 路径 | 本机 | 与官方是否一致 |
+|---|---|---|
+| `~/.qoder/skills/` | ❌ 不存在 | ✅ 一致（官方：默认无，需 `mkdir` 自建） |
+| `~/.qoder/AGENTS.md` | ❌ 不存在 | ✅ 一致 |
+| `~/.qoder/rules/` | ❌ 不存在 | ✅ 一致 |
+| `~/.qoder/agents/` | ❌ 不存在 | ⚠️ 官方未给该路径（第三方才这么说），本机无 —— 别照抄第三方 |
+| `~/.qoder/memory/`（用户级自动记忆） | ✅ 存在但**空** | ✅ 一致（`QODER_MEMORY_USER` 未开，故无内容） |
+| `~/.qoder/projects/<project>/memory/` | ✅ 4 个项目目录都有，但**全空** | ✅ 一致（`QODER_MEMORY=1` 未开） |
+| `~/.qoder/settings.json` | ✅ 存在，**只有一个键 `enabledPlugins`** | ✅ 一致（权限/模型都没配） |
+| `~/.qoder/mcp-router.json` `plugins/`（`cache`、`data`、`installed_plugins_v2.json`） | ✅ 存在 | 客户端自己的插件机制 |
+
+→ **结论：Qoder 在本机是全新未配置状态**。要用 skills 得自己建 `~/.qoder/skills/`（可挂 junction 到
+`~/.skills/store`，与 ZCode/opencode 那套一致）；要它记东西得设 `QODER_MEMORY=1`。
 
 **其他实测**：
 
