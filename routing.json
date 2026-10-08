@@ -7,8 +7,6 @@
 
   "host_aliases": {
     "_comment": "把某个主机名指向一个 machine 目录。两种用途：① 主机名改了但还没重启的过渡期（用完删）；② 主机名含 skill 目录命名正则禁止的字符（如 `_`），目录名只能改用 `-`，此时是长期设施、别删。",
-    "WGC": "wgc-work1-px",
-    "_WGC_note": "临时：公司电脑主机名已改成 WGC-WORK1-PX 但还没重启，%COMPUTERNAME% 仍是旧名 WGC。重启后此条失效，届时删掉。",
     "WGC_MACHINE": "wgc-machine",
     "_WGC_MACHINE_note": "长期：主机名 WGC_MACHINE 含下划线，而 skill 目录命名正则 ^[a-z0-9]+(-[a-z0-9]+)*$ 禁止下划线，目录只能叫 wgc-machine，靠这条别名对齐。不要删。"
   },
