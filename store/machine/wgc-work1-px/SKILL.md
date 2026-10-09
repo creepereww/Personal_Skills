@@ -136,6 +136,10 @@ server: WattToolkit                   ← Watt Toolkit（Steam++／瓦特工具�
 反代本身是好的：用 **`Basic`** 认证 curl 同一 URL → **200** 并正确返回 `refs/heads/master`。
 （❗ 用 `Bearer` 测会得到 401，那是**测错了** —— git 协议走 Basic。）
 
+> **实测补记（同日）**：这个静默 128 **不是必现** —— 放宽 TLS 校验后，常规路径**也能成功**
+> （打完补丁的 `scripts/push.ps1` 第 1 次 openssl 就把提交推上去了）。所以它更像**间歇性**故障
+> （与 TLS 后端 / 网络路径有关），而**不是**凭证本身的问题。→「预置认证头」当**兜底**保留，别删。
+
 排除项（都验证过不是原因）：token 有效（`creepereww`，scopes `gist, repo, workflow`）、
 `credential fill` 能取到凭证、网络通。
 
