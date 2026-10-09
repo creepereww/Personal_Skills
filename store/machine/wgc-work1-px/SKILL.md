@@ -1,7 +1,7 @@
 ---
 name: wgc-work1-px
-description: 公司电脑 WGC-WORK1-PX 的本机环境事实 —— 机型（Lecoo）、HOME 与 %USERPROFILE% 错位（HOME 在 D:\AppData\Roaming\SPB_Data）、git 装在 D:\Git（与 bash 里的 PortableGit git 是两套，system 凭证配置不同）、装了哪些 agent（WorkBuddy/ZCode/QClaw/Codex/MarsCode/Trae，QClaw 数据在 D 盘）、两条磁盘余量、**推送 GitHub 的正确姿势**（github.com:443 时通时断、两个 TLS 后端随网络路径互换、要绕开沙箱代理、走 GCM 已存凭证、多重试；已固化成 scripts/push.ps1）、Everything 1.4.1.1029 在 D:\ 但没装 es.exe。在这台机器上要判断"某个工具/客户端在哪、网络通不通、怎么 push"时看这里。通用规则（路径格式、junction、命名）见 local-windows-shell-conventions。
-version: v0.6
+description: 公司电脑 WGC-WORK1-PX 的本机环境事实 —— 机型（Lecoo）、HOME 与 %USERPROFILE% 错位（HOME 在 D:\AppData\Roaming\SPB_Data）、git 装在 D:\Git（与 bash 的 PortableGit git 是两套）、装了哪些 agent（WorkBuddy/ZCode/QClaw/Codex/MarsCode/Trae，QClaw 在 D 盘）、磁盘余量、**推送 GitHub 的正确姿势**（github.com 被 Watt Toolkit 劫持到 127.0.0.1，致 TLS 校验失败、push 静默 exit 128，需放宽校验 + 预置认证头；已固化成 scripts/push.ps1）、Everything 在 D:\ 但没装 es.exe。判断"工具在哪、网络通不通、怎么 push"时看这里。通用规则见 local-windows-shell-conventions。
+version: v0.7
 ---
 
 # wgc-work1-px（公司电脑）
@@ -104,10 +104,67 @@ version: v0.6
 - `~/.ssh/config` **不存在**（没配过 SSH 通道）
 - 仓库 remote 是 HTTPS：`https://github.com/creepereww/Personal_Skills.git`
 
+### ★★ github.com 被 Watt Toolkit 劫持到 127.0.0.1（push 失败的头号元凶）
+
+**这是本机最要命的一条** —— 它会伪装成「网络不通」「证书错」「凭证错」，全都不对。
+
+**硬证据**（`GIT_CURL_VERBOSE=1` 抓的）：
+
+```
+Host github.com:443 was resolved.
+IPv4: 127.0.0.1                       ← github.com 被劫持到本机
+Connected to github.com (127.0.0.1) port 443
+issuer: CN=SteamTools Certificate; O=BeyondDimension; C=CN
+server: WattToolkit                   ← Watt Toolkit（Steam++／瓦特工具箱）的本地反代
+```
+
+- 劫持**不是靠 hosts 文件**（`C:\Windows\System32\drivers\etc\hosts` 里没有 github 条目）——
+  是 Watt Toolkit 自带的 DNS/加速，**别去改 hosts 找它**。
+- **`api.github.com` 没被劫持**（走真实 GitHub）→ 所以 `curl` 打 API 一直正常，只有 git 用的
+  `github.com` 中招。这也是「API 能干、git 不能干」这个怪现象的来源。
+- 判据（脚本里用的）：**远端 host 解析到回环地址**（127.0.0.1 / ::1）即命中。
+
+**由此派生的两个"假象"**（别被带偏）：
+
+| 看着像 | 实际是 |
+|---|---|
+| openssl 报 `unable to get local issuer certificate (20)` | 被反代的**自签 SteamTools 证书**骗了，不是网络问题 |
+| schannel 报 `CRYPT_E_NO_REVOCATION_CHECK`（curl 同理，要 `--ssl-no-revoke`） | 吊销检查（CRL/OCSP）在本机不可达 |
+
+**真正的杀手**：`git push` 先请求 `info/refs?service=git-receive-pack` 拿 **401**（正常）→
+调凭证助手取凭证 → **进程静默 exit 128，stdout/stderr 全空**。
+反代本身是好的：用 **`Basic`** 认证 curl 同一 URL → **200** 并正确返回 `refs/heads/master`。
+（❗ 用 `Bearer` 测会得到 401，那是**测错了** —— git 协议走 Basic。）
+
+排除项（都验证过不是原因）：token 有效（`creepereww`，scopes `gist, repo, workflow`）、
+`credential fill` 能取到凭证、网络通。
+
+**✅ 解法（已验证）**：把 token 做成 Basic 头**预置**进请求（`http.extraHeader`），
+让第一次请求就带认证，绕开「401 → 调助手 → 重试」这条走不通的路：
+
+```powershell
+$g="D:\Git\cmd\git.exe"; $repo="C:\Users\cgw06\.skills"
+$r = ("protocol=https`nhost=github.com`n`n" | & $g -C $repo credential fill 2>&1 | Out-String)
+$tok = (($r -split "`n") | Where-Object {$_ -like "password=*"}) -replace "^password=",""
+$b64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("creepereww:$($tok.Trim())"))
+& $g -C $repo -c "credential.helper=" -c "http.extraHeader=Authorization: Basic $b64" `
+   -c http.sslBackend=openssl -c http.sslVerify=false push origin master
+```
+
+**根治（推荐）**：关掉 Watt Toolkit 的「GitHub 加速」，或退出 Watt Toolkit —— 之后走常规路径即可。
+
+> ⚠️ 另有个 bash 侧的坑：**Bash 工具里的联网 git 操作会被静默吞掉**
+> （`ls-remote` / `fetch` / `push` 一律 exit 0 + 零输出）。**同一个 git 在 PowerShell 里正常**。
+> → 本机判断网络类 git 成败**必须走 PowerShell 工具**，Bash 里报「成功」是假象。
+
+**为什么没能更早发现**：`Watt Toolkit` 是「加速工具」，平时开着不碍事（Web 访问、curl、API 全正常），
+只在 git 的鉴权重试路径上把它自己撞坏了 —— 所以第一反应总是怀疑网络/凭证/证书，绕远路。
+
 ### ★ 在这台机推送 GitHub 的正确姿势（踩过坑）
 
 **症状**：`git push` 报 `Failed to connect to github.com:443`，或（在 WorkBuddy 沙箱里）
-`CONNECT tunnel failed, response 502`。看似网络不通，实则三个坑叠加：
+`CONNECT tunnel failed, response 502`，或**静默 exit 128、什么都不打印**。
+看似网络不通，实则下面几个坑叠加：
 
 1. **WorkBuddy 沙箱会注入代理**（`http_proxy=http://127.0.0.1:58185`），该代理对
    `github.com` 返回 **502**（但 `api.github.com`/`gitee.com` 却是通的）。→ 推送必须**绕开代理**。
@@ -121,6 +178,9 @@ version: v0.6
    「git 凭证：会弹 GUI 框卡住 push」。GCM 里**已存凭证**（`creepereww` + token，可用
    `echo -e "protocol=https\nhost=github.com\n" | /mingw64/bin/git-credential-manager get` 取到）。
 4. `github.com:443` 本身**时通时断** —— 一次不行就**多重试几次**（实测第 2~4 次才成功）。
+5. **`github.com` 被 Watt Toolkit 劫持到 `127.0.0.1`** —— 见上面「★★」那节。
+   表现是「证书错 / 吊销检查错 / 静默 exit 128」，**不是网络不通**；解法是放宽 TLS 校验 +
+   预置 Basic 认证头（`scripts/push.ps1` 已内置），或干脆关掉 Watt Toolkit 的 GitHub 加速。
 
 > **⚠️ 这台机有两个 git，system 配置不一样**（实测）：
 > - **bash 里** `which git` → PortableGit 的 `/mingw64/bin/git`（2.55），system config = **`helper-selector`**
@@ -152,9 +212,14 @@ git config --local --add credential.helper /mingw64/bin/git-credential-manager
 ```bash
 pwsh ~/.skills/scripts/push.ps1
 ```
-它自动做四件事：绕开沙箱代理 → 在 openssl / schannel 之间交替重试 → **先 fetch 检测**
-（远端领先就先 rebase 再推，免得 non-fast-forward 被拒）→ push。
+它自动做六件事：绕开沙箱代理 → 在 openssl / schannel 之间交替重试 →
+**先 fetch 检测**（远端领先就先 rebase 再推，免得 non-fast-forward 被拒）→
+探测 **远程 host 是否被本地反代劫持**（解析到回环地址即命中，自动放宽 TLS 校验）→
+push 若走常规路径失败，**退化为「预置 Basic 认证头」重试**（绕过 401 重试那条死路）→ push。
 `-DryRun` 只看不推；`-Log out.txt` 结果落盘；`-NoRebase` 落后时停手让你手工处理。
+
+> 安全性提醒：退化为预置认证头时，token 会出现在 git 进程的命令行里（同机同用户可见）。
+> 单人机可接受；共用机器建议改用 SSH，或关掉本地反代走常规路径。
 
 ## Everything / es
 
