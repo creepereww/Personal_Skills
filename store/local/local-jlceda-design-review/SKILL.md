@@ -1,7 +1,7 @@
 ---
 name: local-jlceda-design-review
 description: 嘉立创EDA(EasyEDA)工程的原理图 + PCB 设计审查方法与流程 —— 不止看 DRC，而是重建网表做电路级审查（电源/充电拓扑、端接 Rd、悬空脚、去耦、BOM 误绑、重复位号）与布局布线审查（线宽载流、去耦距离、缝合过孔、铺铜与板框、环宽、散热）。当用户说"帮我检查/审查原理图""PCB 布局布线有没有要优化的""原理图原理有没有错""做个设计评审""出一份检查报告"，或在嘉立创EDA/EasyEDA 里对着某个工程要做设计审查时使用。依赖 easyeda-api skill 完成与 EDA 的连接与 API 调用。
-version: v0.3
+version: v0.4
 ---
 
 # 嘉立创EDA 原理图/PCB 设计审查
@@ -43,8 +43,8 @@ version: v0.3
 一行命令即可导出（EDA 已连、激活文档是原理图）：
 
 ```bash
-node scripts/export_connection.mjs <工作目录>/<项目名>/          # 落 netlist.enet.json
-node scripts/parse_enet.mjs <工作目录>/<项目名>/netlist.enet.json  # 规范化 + 可读打印
+node scripts/export_connection.mjs <工作目录>/<项目名>/ --mode all   # 落 netlist.enet.json + sch_parts.json
+node scripts/parse_enet.mjs <工作目录>/<项目名>/netlist.enet.json     # 规范化 + 可读打印
 ```
 
 - 约定：**在工作目录下按工程名建文件夹**（如 `<工作目录>/<项目名>/`），产物都落这里。
@@ -53,6 +53,9 @@ node scripts/parse_enet.mjs <工作目录>/<项目名>/netlist.enet.json  # 规�
   `scripts/parse_enet.mjs` 能识别 `format:"jlc-schematic-region"`。两种格式见
   `references/connection-json-formats.md`。
 - 想复刻插件的"框选区域导出"：`export_connection.mjs <outDir> --mode region`（先在 EDA 里框选）。
+- **⚠️ ENET 有盲区**：它按 Unique ID 建索引，**会漏掉 UniqueId 为空的器件**（典型是未转 PCB 的遗留占位）。因此
+  "重复位号 / 游离器件 / 器件数对账"**不能只看 ENET** —— 用 `--mode parts`（或 `all`）取
+  `sch_PrimitiveComponent.getAll()` 的全量器件来补。
 
 ### 路线 B（兜底 / 补充）—— API 取原始图元本地重建
 原理图侧：`sch_PrimitiveComponent.getAll()` + 逐件 `getAllPins()`，`sch_PrimitiveWire.getAll()`；
@@ -95,6 +98,8 @@ PCB 侧：`pcb_PrimitiveComponent.getAll()` + `getAllPinsByPrimitiveId()`，`pcb
   但注意**串联 RC 的中点本来就只连这两个元件**，那不算"没接"——RC 滤波/吸收是合理用法，别误判为死元件。
 - **器件设计值 vs 绑定物料**：逐个比对"Value"与绑定的立创编号描述（如设计 2.2Ω 却绑了 5.1kΩ = BOM 误绑）。
 - **重复位号**：同名位号若非多子部件器件，必冲突，会导致原理图/PCB 器件数对不上。
+  **查它必须用 `getAll()`（`--mode parts`），不能用 ENET** —— ENET 会漏掉无 UniqueId 的那个，
+  从而"看起来没重复"（本流程真踩过：ENET 34 个位号无重复，`getAll()` 却是 35 个、`U1` 重复）。
 - **未命名/自动网络**（`$1Nxxx`）成堆 → 网标不规范，后续维护易错。
 - **测试点、跳线、网络标签**在原理图里常表现为"1 脚器件"，做器件统计时要分辨。
 
@@ -136,7 +141,14 @@ PCB 侧：`pcb_PrimitiveComponent.getAll()` + `getAllPinsByPrimitiveId()`，`pcb
 5. 单位：PCB=mil，原理图=0.01in。
 6. 孤立焊盘只能从全量 pad 反查（见 §3B）。
 7. 别把"照抄模板/看起来像"当结论 —— 每条判断都回读原始数据确认（网名、坐标、实测间距）。
-8. 只读审查**不改设计**；任何改动都属"大改"，动手前先说明"改哪个文件、删什么、加什么"并等确认。
+8. `getState_ComponentType()` 返回的是**小写**字符串：`'part'`（普通器件）/ `'netflag'`（网络标签）/
+   `'sheet'`（图纸）—— **不是** `'COMPONENT'`。且 `ESCH_PrimitiveComponentType`/`ESYS_NetlistType`
+   等全局枚举在 bridge 执行环境里是 `undefined`；判类型用小写字面量，枚举值硬编码兜底。
+9. **ENET 网表会漏器件**：按 Unique ID 建索引，漏掉 UniqueId 为空者 → 第 8 条"重复位号翻车"的根因。
+   一致性检查（器件数/重复位号）以 `getAll()` 为准，ENET 只当**连通性**真值。
+10. 跨请求**选区不保持**：程序化 `doSelectPrimitives()` 的选区在下一次 `/execute` 请求里读不到；
+    region 模式需**用户手动框选**，或把"选中 + 导出"放进同一次执行上下文。
+11. 只读审查**不改设计**；任何改动都属"大改"，动手前先说明"改哪个文件、删什么、加什么"并等确认。
 
 > 📎 **取数/判读陷阱与验收方法论**已系统整理在 `references/pitfalls.md`
 > （连接与环境、单位与坐标、读错文档、铺铜判据、API 可用性、以及"假绿 / 自证循环 / 数量&位置对账 / DRC 真伪分拣 / 五步诊断法"）。
@@ -150,8 +162,9 @@ PCB 侧：`pcb_PrimitiveComponent.getAll()` + `getAllPinsByPrimitiveId()`，`pcb
 
 | 文件 | 用途 |
 |---|---|
-| `export_connection.mjs` | **内置「导出连接关系」**：`node export_connection.mjs <outDir> [--mode netlist\|region\|both] [--port 49620]`，直接落网表/区域 JSON，免手动点插件 |
+| `export_connection.mjs` | **内置「导出连接关系」**：`node export_connection.mjs <outDir> [--mode netlist\|parts\|region\|both\|all] [--port 49620]`，直接落网表/器件/区域 JSON，免手动点插件（`all`=netlist+parts，推荐） |
 | `eda_payloads/export_netlist.js` | EDA 端 payload：`getNetlistFile` 取全工程 ENET 网表 |
+| `eda_payloads/export_sch_parts.js` | EDA 端 payload：`getAll()` 取原理图全量器件，补 ENET 盲区（重复位号 / 无 UniqueId / 未转 PCB） |
 | `eda_payloads/export_region.js` | EDA 端 payload：复刻插件，把框选区域导成 `jlc-schematic-region` |
 | `parse_enet.mjs` | 把 ENET 或 region JSON 规范化成统一网表，并打印器件/网络/未连接引脚 |
 | `eda_exec.mjs` | 通用执行器：`node eda_exec.mjs <js文件> [端口]`，跑任意 EDA 端 JS 片段 |

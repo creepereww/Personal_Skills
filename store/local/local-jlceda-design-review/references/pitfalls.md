@@ -63,6 +63,12 @@
   `create` 返回对象的 id 在 **`.primitiveId`** 属性上（不是 `getPrimitiveId()` 方法）。
 - **层号表**：`TOP=1 / BOTTOM=2 / SILK=3,4 / MASK=5,6 / PASTE=7,8 / OUTLINE=11 / MULTI=12`；
   **内层从 15 起**（`In1=15 / In2=16`…）。⚠ `getAllLayers()` 会列出全部 Inner，**别按列表顺序推层号**。
+- **组件类型判据是「小写字符串」**：`getState_ComponentType()` 返回 `'part'`（普通器件）/ `'netflag'`（网络标签）/
+  `'sheet'`（图纸）；而 `ESCH_PrimitiveComponentType` / `ESYS_NetlistType` 等全局枚举在 bridge 执行环境里是
+  **`undefined`**。按 `=== 'COMPONENT'` 判等会**恒不成立**（踩过：region 导出误报"没有普通器件"）。
+- **ENET 网表会漏器件**：`getNetlistFile` 的 `components` 以器件 **Unique ID** 为键，**UniqueId 为空的器件整条缺失**
+  （典型：未转 PCB 的遗留占位）⇒ **器件数对账 / 重复位号检查要用 `sch_PrimitiveComponent.getAll()`**，别只信 ENET。
+- **选区跨 `/execute` 请求不保持**：程序化 `doSelectPrimitives()` 的选区在下一次请求里读不到（用户手动框选的可读到）。
 
 ---
 

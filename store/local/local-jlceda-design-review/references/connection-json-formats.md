@@ -25,8 +25,9 @@ node scripts/parse_enet.mjs <outDir>/netlist.enet.json [out.json]   # 规范化 
 - 选区：`eda.sch_SelectControl.getAllSelectedPrimitives_PrimitiveId()` → ids → `eda.sch_Primitive.getPrimitivesByPrimitiveId(ids)`
 - 器件引脚：`eda.sch_PrimitiveComponent.getAllPinsByPrimitiveId(primitiveId)`
   - 引脚取值为 `getState_PinNumber()` / `getState_PinName()` / **`getState_pinType()`（小写 p）** / `getState_NoConnected()`
-- 器件判据：`primitive.getState_PrimitiveType() === ESCH_PrimitiveType.COMPONENT`；
-  或 `component.getState_ComponentType() === ESCH_PrimitiveComponentType.COMPONENT`（另有 `NET_FLAG` / `NET_PORT` / `DRAWING`）
+- 器件判据（**实测**）：`getState_ComponentType()` 返回**小写**字符串 —— `'part'`（普通器件）/ `'netflag'`（网络标签）/
+  `'sheet'`（图纸）。**不要**与 `ESCH_PrimitiveComponentType.COMPONENT` 比较：该全局枚举在 bridge 执行环境里是
+  `undefined`，比较会恒不匹配（本流程真踩过 → region 导出误报"没有普通器件"）。用 `String(t).toLowerCase() === 'part'`。
 
 **前置**：SCH_* API 要求当前激活文档是原理图；`getNetlistFile` 返回空多半是激活的不是原理图页。
 
@@ -51,8 +52,13 @@ node scripts/parse_enet.mjs <outDir>/netlist.enet.json [out.json]   # 规范化 
 
 要点：
 - `pinInfoMap[*].net` 为**空串**表示该脚未接线（与"接 GND"要分清）。
-- 组件按 `props.Designator` 归并；**同名位号会对应多条记录**（多子部件器件或真冲突），需自行判别。
-- 这是全工程网表：做整体审查用它是首选。
+- `props.Name` 多为**模板**（`={Value}` / `={Device}`），勿直接显示；器件名优先 `DeviceName`，
+  封装名优先 `FootprintName`（`Footprint` 只是内部 ID）。
+- 物料字段：`Supplier Part`（立创编号，如 `C9900021051`）、`LCSC Part Name`（商品名）、
+  `Manufacturer Part`（厂家料号）、`JLCPCB Part Class`。**这些键可能整个缺失**（不是空串）。
+- **⚠️ ENET 盲区**：`components` 的键是**器件 Unique ID**，**UniqueId 为空的器件会被整条漏掉**
+  （典型：未转 PCB 的遗留占位）。因此"**重复位号 / 器件数对账**"**不能只看 ENET** —— 见 §4。
+- 这是全工程网表：做**连通性**审查用它是首选。
 
 ## 3. `jlc-schematic-region` 结构（插件导出）
 
@@ -77,12 +83,16 @@ node scripts/parse_enet.mjs <outDir>/netlist.enet.json [out.json]   # 规范化 
 - `generated`：`true` 表示原网名是自动生成（`N$数字` / `$数字N数字`）。
 - **不含坐标**：`primitiveId` / `x` / `y` / `rotation` / `line` 是插件明确禁止出现在正文里的字段。
 - 插件版每个器件另带 `referenceProperties{key, more}`（只读物性，供 AI 识别型号/参数，导入时被忽略）。
+- 内置 `export_region.js` 的器件判据同样按小写 `'part'`；且**选区跨 `/execute` 请求不保持** ——
+  用户手动框选的选区能被读到，但程序化 `doSelectPrimitives()` 的选区在下一次请求里读不到。
+- 若框选区域**存在重复位号**，导出会被拒绝（位号必须唯一），需先修重复位号。
 
 ---
 
 ## 4. 两份格式与审查的分工
 
-- **ENET（全工程）** 当**连通性真值**：判断悬空脚、单点网、端接、重复位号、BOM 绑定的值，都靠它。
+- **ENET（全工程）** 当**连通性真值**：判断悬空脚、单点网、端接、BOM 绑定的值，靠它。
+  **但"重复位号 / 器件数对账"要用 `getAll()`（`--mode parts`）** —— ENET 会漏掉无 UniqueId 的器件。
 - **region** 用于**局部功能块**的读写往返（插件导入/修改流程）；做只读审查时，全工程 ENET 通常更合适。
 - 若两者都有：**以 ENET 为准**（region 只是它的一个子集视图，且可能因框选不全而漏）。
 
@@ -95,4 +105,4 @@ node scripts/parse_enet.mjs <outDir>/netlist.enet.json [out.json]   # 规范化 
   未整包拷贝分发。
 - 内置的 `export_region.js` 与插件导出的字段**基本兼容**；唯一差别：本实现把 `footprint` 直接放在 `components[]` 上
   （插件放在 `referenceProperties.key.footprint`，且导入时被忽略），因此不影响插件侧导入。
-- ENET 格式来自嘉立创官方网表 API（`ESYS_NetlistType.JLCEDA_PRO`），字段名以实机导出为准（首次导出后如有出入请修正本节）。
+- ENET 格式来自嘉立创官方网表 API（`ESYS_NetlistType.JLCEDA_PRO`）；字段名已按实机导出（JLCEDA Pro v2.0.0）核对。

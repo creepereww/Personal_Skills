@@ -2,11 +2,16 @@
 // 复刻《让AI看看你的原理图》的「导出连接关系」，字段兼容其「导入连接关系」。
 // 用法：先在原理图中框选区域，再运行本 payload。
 // 由 `new AsyncFunction('eda', code)` 执行 → 支持多行与注释；必须 return。
-const CT = (typeof ESCH_PrimitiveComponentType !== 'undefined') ? ESCH_PrimitiveComponentType : {};
-const COMPONENT = CT.COMPONENT || 'COMPONENT';
-const NET_FLAG = CT.NET_FLAG || 'NET_FLAG';
+// 实测（JLCEDA Pro，本机 bridge 执行环境）：下列全局枚举 **undefined**，
+// 且 getState_ComponentType() 返回**小写**字符串：'part'（普通器件）/ 'netflag'（网络标签）/ 'sheet'（图纸）。
+// 因此不能用 ESCH_PrimitiveComponentType.COMPONENT 判等，须按小写字面量判断（并兼容 'component'）。
 const NET_TYPE =
-  (typeof ESYS_NetlistType !== 'undefined' && ESYS_NetlistType.JLCEDA_PRO) || 'JLCEDA';
+  (typeof ESYS_NetlistType !== 'undefined' && ESYS_NetlistType && ESYS_NetlistType.JLCEDA_PRO) || 'JLCEDA';
+const isPart = function (t) { const s = String(t).toLowerCase(); return s === 'part' || s === 'component'; };
+const isNetFlag = function (t) {
+  const s = String(t).toLowerCase().replace(/[_\s]/g, '');
+  return s === 'netflag' || s === 'netport' || s === 'netlabel';
+};
 
 const ids = await eda.sch_SelectControl.getAllSelectedPrimitives_PrimitiveId();
 if (!ids || ids.length === 0) {
@@ -17,9 +22,9 @@ const asComp = sel.filter(function (p) {
   try { return typeof p.getState_ComponentType === 'function'; } catch (e) { return false; }
 });
 
-const comps = asComp.filter(function (c) { return c.getState_ComponentType() === COMPONENT; });
+const comps = asComp.filter(function (c) { return isPart(c.getState_ComponentType()); });
 const anchors = asComp
-  .filter(function (c) { return c.getState_ComponentType() === NET_FLAG; })
+  .filter(function (c) { return isNetFlag(c.getState_ComponentType()); })
   .map(function (c) { return { net: c.getState_Net() || '' }; })
   .filter(function (a) { return a.net; });
 if (comps.length === 0) return { ok: false, error: '框选区域中没有普通器件。请框选一个完整功能区。' };

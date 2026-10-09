@@ -1,7 +1,11 @@
 #!/usr/bin/env node
-// 内置「导出连接关系」——无需手动点插件菜单，直接把工程网表/区域结构导到本地。
+// 内置「导出连接关系」——无需手动点插件菜单，直接把工程网表/器件/区域结构导到本地。
 // 用法:
-//   node export_connection.mjs <outDir> [--port 49620] [--mode netlist|region|both]
+//   node export_connection.mjs <outDir> [--port 49620] [--mode netlist|parts|region|both|all]
+//   netlist: 官方 ENET 全工程网表（连通性真值）
+//   parts:   原理图器件全量（sch_PrimitiveComponent.getAll）——补 ENET 盲区，查重复位号/游离器件
+//   region:  框选区域结构（需先在 EDA 里框选）
+//   both = netlist+region    all = netlist+parts
 // 前置: easyeda-api 桥接已起、EDA 端已连接、且激活文档是**原理图**（region 模式还需先框选）。
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,7 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 const outDir = args[0];
 if (!outDir) {
-  console.error('usage: node export_connection.mjs <outDir> [--port 49620] [--mode netlist|region|both]');
+  console.error('usage: node export_connection.mjs <outDir> [--port 49620] [--mode netlist|parts|region|both|all]');
   process.exit(2);
 }
 const flag = (name, dflt) => {
@@ -41,12 +45,24 @@ async function runPayload(payloadRel) {
 
 fs.mkdirSync(outDir, { recursive: true });
 
-if (mode === 'netlist' || mode === 'both') {
+if (mode === 'netlist' || mode === 'both' || mode === 'all') {
   const r = await runPayload('export_netlist.js');
   if (!r || r.ok !== true) { console.error('导出 ENET 网表失败：', (r && r.error) || r); process.exit(1); }
   const p = path.join(outDir, 'netlist.enet.json');
   fs.writeFileSync(p, r.netlist);
   console.log(`OK  ENET 网表 -> ${p}  (${r.length} 字节)`);
+}
+
+if (mode === 'parts' || mode === 'all') {
+  const r = await runPayload('export_sch_parts.js');
+  if (!r || r.ok !== true) { console.error('导出原理图器件失败：', (r && r.error) || r); process.exit(1); }
+  const p = path.join(outDir, 'sch_parts.json');
+  fs.writeFileSync(p, JSON.stringify(r.parts, null, 2));
+  console.log(`OK  原理图器件 -> ${p}  (${r.count} 个)`);
+  for (const d of r.dupDesignators) console.log(`  ⚠ 重复位号 ${d.designator} x${d.count}`);
+  if (r.blankDesignator.length) console.log(`  ⚠ 无位号器件: ${r.blankDesignator.length} 个`);
+  if (r.noUniqueId.length) console.log(`  ⚠ 无 UniqueId（ENET 会漏掉）: ${r.noUniqueId.join(', ')}`);
+  if (r.notConvertToPcb.length) console.log(`  ⚠ 未转 PCB: ${r.notConvertToPcb.join(', ')}`);
 }
 
 if (mode === 'region' || mode === 'both') {
