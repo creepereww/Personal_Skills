@@ -1,7 +1,7 @@
 ---
 name: local-jlceda-design-review
 description: 嘉立创EDA(EasyEDA)工程的原理图 + PCB 设计审查方法与流程 —— 不止看 DRC，而是重建网表做电路级审查（电源/充电拓扑、端接 Rd、悬空脚、去耦、BOM 误绑、重复位号）与布局布线审查（线宽载流、去耦距离、缝合过孔、铺铜与板框、环宽、散热）。当用户说"帮我检查/审查原理图""PCB 布局布线有没有要优化的""原理图原理有没有错""做个设计评审""出一份检查报告"，或在嘉立创EDA/EasyEDA 里对着某个工程要做设计审查时使用。依赖 easyeda-api skill 完成与 EDA 的连接与 API 调用。
-version: v0.1
+version: v0.2
 ---
 
 # 嘉立创EDA 原理图/PCB 设计审查
@@ -70,6 +70,9 @@ PCB 侧：`pcb_PrimitiveComponent.getAll()` + `getAllPinsByPrimitiveId()`，`pcb
 
 ## 3. 检查清单
 
+> 📎 深挖：**DRC 报错→含义/修复方向**的对照表见 `references/drc-and-checklist.md` §1–2；
+> 质量门、网标命名规范、"真元件/假元件"判据见同文件 §3–5。
+
 ### A. 原理层面（DRC 不会告诉你的高价值项）
 - **电源/充电拓扑**：充电器输入(VBUS/VCC)有无去耦（≥1µF）；PROG 电阻决定的充电电流是否匹配电池容量。
 - **端接电阻**：USB-C 的 CC1/CC2 是否有 **5.1k 对地 Rd**（下拉到 GND，**不是**只串到 MCU）；
@@ -120,3 +123,19 @@ PCB 侧：`pcb_PrimitiveComponent.getAll()` + `getAllPinsByPrimitiveId()`，`pcb
 6. 孤立焊盘只能从全量 pad 反查（见 §3B）。
 7. 别把"照抄模板/看起来像"当结论 —— 每条判断都回读原始数据确认（网名、坐标、实测间距）。
 8. 只读审查**不改设计**；任何改动都属"大改"，动手前先说明"改哪个文件、删什么、加什么"并等确认。
+
+> 📎 **取数/判读陷阱与验收方法论**已系统整理在 `references/pitfalls.md`
+> （连接与环境、单位与坐标、读错文档、铺铜判据、API 可用性、以及"假绿 / 自证循环 / 数量&位置对账 / DRC 真伪分拣 / 五步诊断法"）。
+> **报结论前先过一遍**——尤其"DRC 结果必须实测确认并逐条真伪分拣"这一条。
+
+---
+
+## 6. 参考文件
+
+| 文件 | 内容 | 来源 |
+|---|---|---|
+| `references/pitfalls.md` | 取数与判读陷阱（连接/单位/读文档/铺铜/API 可用性）+ 验收方法论（自证循环、数量&位置对账、DRC 真伪、五步诊断法） | 提炼自 SkillHub `easyeda-sch-to-pcb` 的坑清单与验收体系 |
+| `references/drc-and-checklist.md` | DRC 报错翻译表、修复优先级决策树、质量门（改造为审查检查项）、网标命名规范、"真元件/假元件"判据、交付物自洽 | 提炼自 SkillHub `pcb-design-assistant`（MIT） |
+
+> 两份都是**只读审查视角**的提炼（去掉动手步骤）；改板（写）专属的坑（源文本手术、分批写入、页签额度、唯一 uuid 等）
+> 只在 `pitfalls.md` §H 留了索引，真动手改板时再回看外部原 skill 的完整坑清单。
