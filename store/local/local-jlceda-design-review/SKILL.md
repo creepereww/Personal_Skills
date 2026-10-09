@@ -1,7 +1,7 @@
 ---
 name: local-jlceda-design-review
 description: 嘉立创EDA(EasyEDA)工程的原理图 + PCB 设计审查方法与流程 —— 不止看 DRC，而是重建网表做电路级审查（电源/充电拓扑、端接 Rd、悬空脚、去耦、BOM 误绑、重复位号）与布局布线审查（线宽载流、去耦距离、缝合过孔、铺铜与板框、环宽、散热）。当用户说"帮我检查/审查原理图""PCB 布局布线有没有要优化的""原理图原理有没有错""做个设计评审""出一份检查报告"，或在嘉立创EDA/EasyEDA 里对着某个工程要做设计审查时使用。依赖 easyeda-api skill 完成与 EDA 的连接与 API 调用。
-version: v0.2
+version: v0.3
 ---
 
 # 嘉立创EDA 原理图/PCB 设计审查
@@ -23,23 +23,36 @@ version: v0.2
 
 按 `easyeda-api` skill 起桥接、连 EDA。要点：
 - 健康检查：`curl http://127.0.0.1:<port>/health`（端口在 49620–49629 自选）。
-- 送进 `/execute` 的代码是**拼成单行执行的**：多语句用分号结尾、**不要写注释**、必须 `return`。
-- 用 `scripts/eda_exec.mjs <js文件> [端口]` 执行 JS 片段，省掉 bash 转义（把片段写成临时 `.js` 文件）。
+- 送进 `/execute` 的代码在 EDA 端由 `new AsyncFunction('eda', code)` 执行 → **多行、注释、`await` 都正常**，
+  最后必须 `return`（返回值即 `eda` 结果）。所以把片段写成正常的 `.js` 文件即可。
+- 用 `scripts/eda_exec.mjs <js文件> [端口]` 执行 JS 片段，省掉 bash 转义。
 
 在工程里先认清三样东西的 uuid：原理图页、PCB、项目。切文档用 `dmt_EditorControl.openDocument(uuid)`；
 `SCH_*` API 要求激活的是原理图页，`PCB_*` 要求是 PCB，**跨域操作前先切、做完切回原文档**。
 
 ---
 
-## 1. 数据获取：两条路线
+## 1. 数据获取：连通性真值优先
 
-### 路线 A（首选，原理级审查）—— 插件导出的"连接关系" JSON
-嘉立创EDA 插件《让AI看看你的原理图》的「导出连接关系」会把 **器件 → 网络 → 引脚** 直接导成 JSON。
+### 路线 A（首选，原理级审查）—— 用官方网表拿"连接关系"，**内置、免手动导出**
 
-- 约定：**在工作目录下按工程名建文件夹**（如 `<工作目录>/<项目名>/`），用户把导出的 JSON 放进去，审查从这里读。
-- 为什么优先：它已经是**抽象层**，从根上避开了"连通性重建"这一步，最不容易错。
-- **待补**：不同版本插件的 JSON 字段名可能不同。第一次拿到实样后，应在此记录字段结构，
-  并补一个 `scripts/parse_connection_json.mjs` 把它规范化成统一网表（`net -> [{des,pin,pinName}]`）。
+嘉立创官方网表 API（`eda.sch_ManufactureData.getNetlistFile(name, ESYS_NetlistType.JLCEDA_PRO)`，
+`JLCEDA_PRO === 'JLCEDA'`）能直接给出**全工程**的**器件→引脚→网络** JSON（ENET 格式）。
+**它不是已废弃的 `sch_Netlist.getNetlist()`** —— 那个才超时，这个可用。
+
+一行命令即可导出（EDA 已连、激活文档是原理图）：
+
+```bash
+node scripts/export_connection.mjs <工作目录>/<项目名>/          # 落 netlist.enet.json
+node scripts/parse_enet.mjs <工作目录>/<项目名>/netlist.enet.json  # 规范化 + 可读打印
+```
+
+- 约定：**在工作目录下按工程名建文件夹**（如 `<工作目录>/<项目名>/`），产物都落这里。
+- 为什么优先：它已是**抽象层**（网络↔引脚），从根上避开"连通性重建"，最不容易错；且覆盖**全工程**。
+- 若用户仍用插件《让AI看看你的原理图》手动导出了区域 JSON，也兼容：
+  `scripts/parse_enet.mjs` 能识别 `format:"jlc-schematic-region"`。两种格式见
+  `references/connection-json-formats.md`。
+- 想复刻插件的"框选区域导出"：`export_connection.mjs <outDir> --mode region`（先在 EDA 里框选）。
 
 ### 路线 B（兜底 / 补充）—— API 取原始图元本地重建
 原理图侧：`sch_PrimitiveComponent.getAll()` + 逐件 `getAllPins()`，`sch_PrimitiveWire.getAll()`；
@@ -116,8 +129,9 @@ PCB 侧：`pcb_PrimitiveComponent.getAll()` + `getAllPinsByPrimitiveId()`，`pcb
 
 1. 送桥接的代码**不能有注释**（会被拼成一行，`//` 把后面全注释掉）。
 2. `sch_Netlist.getNetlist()` 已废弃、会超时；`sch_Net.getAllNets()`/`getCurrentProjectAllNets()` 返回空。
-   需要连通性就自己从图元重建（路线 B），或用路线 A。
-3. 坐标重建**不合并同名网标**（见 §1），是误判连通性的头号来源。
+   **但网表并非拿不到** —— 用 `sch_ManufactureData.getNetlistFile(name, ESYS_NetlistType.JLCEDA_PRO)`
+   （见 §1 路线 A），这是权威的连通性真值。别因为前者废了就退回到坐标重建。
+3. 坐标重建**不合并同名网标**（见 §1），是误判连通性的头号来源。有官方网表就别用坐标法。
 4. 并查集两个经典 bug：点跟自己 union；未注册点没初始化。
 5. 单位：PCB=mil，原理图=0.01in。
 6. 孤立焊盘只能从全量 pad 反查（见 §3B）。
@@ -130,12 +144,25 @@ PCB 侧：`pcb_PrimitiveComponent.getAll()` + `getAllPinsByPrimitiveId()`，`pcb
 
 ---
 
-## 6. 参考文件
+## 6. 脚本与参考文件
+
+**脚本**（`scripts/`）：
+
+| 文件 | 用途 |
+|---|---|
+| `export_connection.mjs` | **内置「导出连接关系」**：`node export_connection.mjs <outDir> [--mode netlist\|region\|both] [--port 49620]`，直接落网表/区域 JSON，免手动点插件 |
+| `eda_payloads/export_netlist.js` | EDA 端 payload：`getNetlistFile` 取全工程 ENET 网表 |
+| `eda_payloads/export_region.js` | EDA 端 payload：复刻插件，把框选区域导成 `jlc-schematic-region` |
+| `parse_enet.mjs` | 把 ENET 或 region JSON 规范化成统一网表，并打印器件/网络/未连接引脚 |
+| `eda_exec.mjs` | 通用执行器：`node eda_exec.mjs <js文件> [端口]`，跑任意 EDA 端 JS 片段 |
+
+**参考文件**（`references/`）：
 
 | 文件 | 内容 | 来源 |
 |---|---|---|
-| `references/pitfalls.md` | 取数与判读陷阱（连接/单位/读文档/铺铜/API 可用性）+ 验收方法论（自证循环、数量&位置对账、DRC 真伪、五步诊断法） | 提炼自 SkillHub `easyeda-sch-to-pcb` 的坑清单与验收体系 |
-| `references/drc-and-checklist.md` | DRC 报错翻译表、修复优先级决策树、质量门（改造为审查检查项）、网标命名规范、"真元件/假元件"判据、交付物自洽 | 提炼自 SkillHub `pcb-design-assistant`（MIT） |
+| `connection-json-formats.md` | ENET 与 `jlc-schematic-region` 两种连接关系格式、字段含义、内置导出用法 | 逆向《让AI看看你的原理图》插件（Apache-2.0 源码） |
+| `pitfalls.md` | 取数与判读陷阱（连接/单位/读文档/铺铜/API 可用性）+ 验收方法论（自证循环、数量&位置对账、DRC 真伪、五步诊断法） | 提炼自 SkillHub `easyeda-sch-to-pcb` 的坑清单与验收体系 |
+| `drc-and-checklist.md` | DRC 报错翻译表、修复优先级决策树、质量门（改造为审查检查项）、网标命名规范、"真元件/假元件"判据、交付物自洽 | 提炼自 SkillHub `pcb-design-assistant`（MIT） |
 
-> 两份都是**只读审查视角**的提炼（去掉动手步骤）；改板（写）专属的坑（源文本手术、分批写入、页签额度、唯一 uuid 等）
+> 三份参考都是**只读审查视角**的提炼（去掉动手步骤）；改板（写）专属的坑（源文本手术、分批写入、页签额度、唯一 uuid 等）
 > 只在 `pitfalls.md` §H 留了索引，真动手改板时再回看外部原 skill 的完整坑清单。
