@@ -1,9 +1,11 @@
 {
   "_comment": "挂载路由表。clients 是各 agent 的 skills 目录；mode=junction 走目录联接，mode=extraDirs 走原生配置（不建联接）。",
-  "_version": 2,
+  "_version": 5,
   "_detect_doc": "每个 client 可写 detect 控制「这台机器装没装」的判定。不写 detect -> 默认看 skills 目录的父目录在不在（装了 agent 就会建自己的配置根）。detect=[] -> 不探测、永远视为已装。detect_any=true -> 多路径任一存在即可。装了才挂，没装跳过，除非跑 link.ps1 时加 -Force。",
 
   "_machine_doc": "store/machine/<主机名>/ 下每台机器一份档案，link.ps1 只挂与本机 %COMPUTERNAME% 匹配（大小写不敏感）的那个。host_aliases 把某个主机名指向另一个 machine 目录：过渡期（主机名改了没重启）用完请删；若因主机名含下划线等目录名非法字符而长期需要，则不要删。",
+
+  "_groups_doc": "挂载怎么决定：① 技能按用途归入 groups 的某个组；② 每个 agent 用 clients.<name>.groups 声明画像（要哪些组，[\"*\"]=全部组），它只挂画像所含组里的技能；③ skills 段可对单个技能做精确覆盖（优先级最高）；④ 未归组的技能回退 defaults.clients。画像支持否定项：「[\"*\"] + \"!组名\"」= 全部组但排除这些组。运行期临时改画像用 link.ps1 -OverrideGroups \"<client>=<组1,组2|*|!组>\"（不写盘，下次普通 link 即还原）。machine 档不归组，按主机名单独挂给所有 client。",
 
   "host_aliases": {
     "_comment": "把某个主机名指向一个 machine 目录。两种用途：① 主机名改了但还没重启的过渡期（用完删）；② 主机名含 skill 目录命名正则禁止的字符（如 `_`），目录名只能改用 `-`，此时是长期设施、别删。",
@@ -11,19 +13,68 @@
     "_WGC_MACHINE_note": "长期：主机名 WGC_MACHINE 含下划线，而 skill 目录命名正则 ^[a-z0-9]+(-[a-z0-9]+)*$ 禁止下划线，目录只能叫 wgc-machine，靠这条别名对齐。不要删。"
   },
 
+  "groups": {
+    "_comment": "功能分组：技能按用途归组，client 的画像（clients.<name>.groups）声明它要哪些组。写成 [\"*\"] = 全部组。优先级：skills 段单点例外 > 本分组 > defaults.clients 兜底。每个技能只应归一个组；machine 档不归组，按主机名单独挂给所有 client。",
+
+    "core": {
+      "label": "通用协作规则",
+      "why": "换台机器、换个 agent 都成立的工作方式与硬约束，每个 agent 都该有（机器档案不归组，按主机名自动挂给所有 client）",
+      "skills": ["local-skills-hub", "local-script-first", "local-plan-first-superpowers", "local-memory-map", "local-windows-shell-conventions"]
+    },
+    "skill-dev": {
+      "label": "技能开发",
+      "why": "创建/整理 skill 时才用，日常对话不必常驻",
+      "skills": ["local-skill-creator-anthropics-skills", "local-neat-freak-lite-khazix-skills"]
+    },
+    "eda": {
+      "label": "硬件 / EDA 设计",
+      "why": "立创EDA/EasyEDA 领域；四个技能触发范围高度重合，只给做硬件设计的 agent",
+      "skills": ["local-jlceda-design-review", "easyeda-agent-connector", "pcb-design-assistant"]
+    },
+    "file-ops": {
+      "label": "文件整理",
+      "why": "批量文件/照片盘点、查重、归类，偏个人场景",
+      "skills": ["local-file-dedup-organize", "local-photo-dedup-review"]
+    },
+    "media": {
+      "label": "视频转录",
+      "why": "B站视频转文字稿，偏个人内容消费",
+      "skills": ["local-bilibili-transcribe"]
+    },
+    "desktop-kb": {
+      "label": "桌面 / 知识库",
+      "why": "Rainmeter 皮肤开发与单文件 HTML 知识库维护，低频专业场景",
+      "skills": ["local-rainmeter-skin-dev", "local-html-kb-maintain"]
+    },
+    "cloud": {
+      "label": "云端接入",
+      "why": "网盘/MCP 一次性接入流程，接完即低频",
+      "skills": ["local-cloud-drive-mcp-onboarding"]
+    },
+    "wb-only": {
+      "label": "WorkBuddy 专属",
+      "why": "内容全是 WorkBuddy 宿主特有的（工具层输出、安全策略、shim 补丁、沙箱代理），其他 agent 读到是噪音甚至误导",
+      "skills": ["local-workbuddy-quirks"]
+    }
+  },
+
   "clients": {
     "workbuddy": {
       "dir": "%USERPROFILE%\\.workbuddy\\skills",
       "mode": "junction",
       "enabled": true,
+      "groups": ["*", "!file-ops", "!media", "!desktop-kb", "!cloud"],
+      "_groups_note": "工作向 = 全部组减去生活类（file-ops/media/desktop-kb/cloud）。用否定写法：当主 agent 跑探索，以后新增/未归组技能会自动先挂到 WorkBuddy，跑稳定再归组分配给别的 agent",
       "detect": [],
       "_detect_note": "宿主自身，永远视为已装（detect=[] 跳过探测）",
-      "note": "只扫自己的目录，不认公共位"
+      "note": "只扫自己的目录，不认公共位。画像=全部组减生活类（否定写法）。偶尔要临时挂全部：pwsh link.ps1 -OverrideGroups \"workbuddy=*\"（运行期，不写盘，下次普通 link 自动还原）"
     },
     "zcode": {
       "dir": "%USERPROFILE%\\.agents\\skills",
       "mode": "junction",
       "enabled": true,
+      "groups": ["*"],
+      "_groups_note": "全能：全部组都挂（用户指定，先按全能弄）",
       "detect": ["%USERPROFILE%\\.zcode", "%USERPROFILE%\\.agents"],
       "detect_any": true,
       "_detect_note": "~/.agents/skills 是公共位，父目录不等于「装了 ZCode」；故用 ~/.zcode 或 ~/.agents 判是否装过",
@@ -33,6 +84,7 @@
       "dir": "%USERPROFILE%\\.config\\opencode\\skills",
       "mode": "junction",
       "enabled": true,
+      "groups": ["core", "skill-dev", "eda", "cloud"],
       "detect": ["%USERPROFILE%\\.config\\opencode", "%APPDATA%\\npm\\node_modules\\opencode-ai", "%USERPROFILE%\\AppData\\Local\\Programs\\opencode"],
       "detect_any": true,
       "_detect_note": "skills 目录原生不存在（父目录判据会误判），故显式给出配置目录/npm 包/winget 三种安装位置",
@@ -42,6 +94,8 @@
       "dir": "%USERPROFILE%\\DoubaoWork\\skills",
       "mode": "junction",
       "enabled": true,
+      "groups": ["core", "file-ops", "desktop-kb"],
+      "_groups_note": "生活向：通用规则 + 文件整理 + 桌面/知识库；不挂 EDA / 技能开发 / 云端（视频转录与网盘接入归 qoder）",
       "detect": ["%USERPROFILE%\\DoubaoWork"],
       "_detect_note": "豆包工作会建 ~/DoubaoWork 配置根",
       "note": "豆包工作的技能根目录（黑盒实测确认可识别）"
@@ -50,6 +104,8 @@
       "dir": "%USERPROFILE%\\.qoder\\skills",
       "mode": "junction",
       "enabled": true,
+      "groups": ["core", "media", "cloud"],
+      "_groups_note": "专项向：只做视频转录 + 网盘接入（+通用规则）；不挂开发/EDA/文件整理/桌面知识库",
       "detect": ["%USERPROFILE%\\.qoder"],
       "_detect_note": "国际版配置根。skills 目录默认不预建，但配置根 ~/.qoder 存在即说明装过（父目录判据成立）",
       "note": "官方确认用户级 ~/.qoder/skills/{name}/SKILL.md（docs.qoder.com/cli/Skills）。同名时用户级覆盖项目级，首次 link 会自动建 skills/"
@@ -58,6 +114,8 @@
       "dir": "%USERPROFILE%\\.qoder-cn\\skills",
       "mode": "junction",
       "enabled": true,
+      "groups": ["core", "media", "cloud"],
+      "_groups_note": "跟随 qoder（专项向）：视频转录 + 网盘接入",
       "detect": ["%USERPROFILE%\\.qoder-cn"],
       "_detect_note": "CN 版（阿里云 Lingma）配置根是 ~/.qoder-cn，与国际版不同；两条分开注册，没装的那条自动跳过",
       "note": "与国际版是两条产品线，目录不同，别混。本机装的是国际版，这条会被自动跳过"
@@ -74,14 +132,14 @@
 
   "defaults": {
     "clients": ["workbuddy", "zcode", "opencode", "doubao", "qoder", "qoder-cn"],
-    "comment": "默认把 store 里全部 skill 挂到这些 client。要裁剪请改 skills 段。"
+    "comment": "【仅兜底】未归入任何 groups 组的技能挂给这些 client。已归组的技能只认各自 client 的 groups 画像，不看这里；machine 档按主机名单独处理。"
   },
 
   "skills": {
-    "_comment": "逐个 skill 的例外规则。未列出的走 defaults.clients；clients 写成空数组 = 完全不挂载。",
-    "local-workbuddy-quirks": {
+    "_comment": "单点例外，优先级高于 groups。给某个技能指定精确的 client 名单（clients 数组）以覆盖它的组归属；写成空数组 = 完全不挂。多数情况改 groups 即可，这里通常留空。",
+    "_example": {
       "clients": ["workbuddy"],
-      "why": "内容全是 WorkBuddy 宿主特有的（工具层输出拿不到、安全策略、shim 补丁、沙箱代理、pwsh 里的 git）。其他 agent 没有这些限制，读它纯属噪音甚至误导，所以只挂 WorkBuddy。"
+      "why": "示例：某技能只挂 WorkBuddy"
     }
   },
 

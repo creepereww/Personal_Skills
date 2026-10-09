@@ -1,6 +1,6 @@
 {
-  "_comment": "远程（GitHub）skill 清单。只有元数据，实体按需才落到 store/cache/。",
-  "_version": 3,
+  "_comment": "远程 skill 清单（GitHub 与 SkillHub 两种来源）。只有元数据，实体按需才落到 store/cache/。source=skillhub 的条目由 skillhub CLI 拉取/升级，check-update.ps1 与 pull.ps1 会跳过它们。",
+  "_version": 4,
   "remote": [
     {
       "id": "summarize",
@@ -108,10 +108,34 @@
       "license": "MIT",
       "commit": "122fb27",
       "cached": true,
-      "mount": true,
+      "mount": false,
       "version": "v1.1.37",
+      "note": "已被 easyeda-agent-connector（v1.9.0）取代，2026-10-09 起不再挂载（mount:false + 移出 routing groups.eda）：审查 skill 的取数层已迁到 connector 的 typed 命令（sch netlist/connectivity/check、pcb dump/drc/check），ENET 网表与任意 eda.* JS 都由 connector 提供，本 skill 的桥接通道（bridge-server.mjs @127.0.0.1:49620-49629 + run-api-gateway.eext）不再被依赖。cache 仍保留，随时可恢复挂载。",
       "note": "EasyEDA Pro 的 API skill。整仓即 skill（path 空），原文快照、未做本地改动 —— 重新 pull 直接覆盖即可，无需合并。含 Node 依赖 ws（首次用需在缓存目录跑 npm install）；运行时还需 Node 18+ 与 EasyEDA Pro 桌面端 + run-api-gateway.eext 扩展，桥接服务 scripts/bridge-server.mjs 只监听 127.0.0.1:49620-49629。原 .upstream 的 base_note 已转录于此（cache 目录的 .upstream 会在重新 pull 时被覆盖）",
       "pulled_date": "2026-09-29"
+    },
+    {
+      "id": "pcb-design-assistant",
+      "source": "skillhub",
+      "namespace": "clawhub_thcjp",
+      "license": "MIT-0",
+      "version": "1.0.0",
+      "cached": true,
+      "mount": true,
+      "note": "SkillHub 社区 skill（发布者 thcjp）。纯文档型：包里只有 SKILL.md + _meta.json + skill-card.md，正文「按需加载表」引用的 references/*.md 与 scripts/bridge-server.mjs 上游均未随包发布 —— 它实际是 prompt 提纲，别当成能跑的桥接实现。与 store/cache/easyeda-api、store/local/local-jlceda-design-review 触发范围大面积重合",
+      "pulled_date": "2026-10-09"
+    },
+    {
+      "id": "easyeda-agent-connector",
+      "source": "skillhub",
+      "namespace": "user_6b95f8df",
+      "license": "MIT",
+      "version": "1.9.0",
+      "cached": true,
+      "mount": true,
+      "name_patched": true,
+      "note": "【2026-10-09 已手工覆盖为官方 release v1.9.0】来源官方 skills.tar.gz，sha256 校验 PASS。SkillHub 渠道内容停于 1.2.10 —— 作者 2026-08-27 打 tag 后未再回传，中间隔 17 个 release（v1.3.0→v1.9.0），故改为从官方 release 跟踪。⚠️ 已实质脱离 SkillHub 管理：skillhub install --force 会把内容退回 1.2.10。仍需本机 easyeda CLI/daemon + EasyEDA Pro 的 .eext 连接器插件 + 开「允许外部交互」才生效，单装 SKILL.md 无用。frontmatter name 已改为与目录名一致的 easyeda-agent-connector（opencode 强制 name=目录名，否则静默加载失败）；再次覆盖后需重打此补丁",
+      "pulled_date": "2026-10-09"
     }
   ],
   "notes": [
@@ -120,7 +144,9 @@
     "commit: 7 位 short SHA，由 pull.ps1 拉取后回填；留空表示还没拉过",
     "mount: 是否挂给各 agent；false 表示只缓存不启用",
     "cached: 本机是否已缓存实体（store/cache/ 不进 Git）",
-    "查更新用 check-update：path 空 -> git ls-remote；path 非空 -> GitHub API commits?path=",
+    "source: 缺省=github，走 repo/path/branch/commit 那套；source=skillhub 走 namespace/version，安装与升级由 skillhub CLI 负责",
+    "查更新用 check-update：path 空 -> git ls-remote；path 非空 -> GitHub API commits?path=；source=skillhub 的条目被跳过",
+    "SkillHub 源查更新用 ~/.skills/scripts/check-skillhub-update.sh；升级用 skillhub upgrade --dir C:/Users/cgw06/.skills/store/cache",
     "未认证 GitHub API 限流 60 次/小时，需要更多设 GITHUB_TOKEN"
   ]
 }

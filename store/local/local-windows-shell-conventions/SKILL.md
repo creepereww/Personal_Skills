@@ -1,7 +1,7 @@
 ---
 name: local-windows-shell-conventions
 description: Windows 上跨机器通用的 shell 与链接约定 —— MSYS 程序的 /c/ 路径 vs Windows 原生程序的 C:/ 路径该用哪种、junction 目录联接的正确建删方式、Git for Windows 把 junction 当普通目录的坑、skill 目录命名正则、各 AI 客户端的 skills 目录、主机名大小写匹配。写 shell 脚本、建软链接、排查路径报错或 skill 没生效时看这里。机器专属信息（机型、客户端装在哪个盘、网络情况）见 machine 档；WorkBuddy 的 skill/专家机制见 local-memory-map。
-version: v0.4
+version: v0.5
 ---
 
 # Windows Shell 与链接约定（跨机器通用）
@@ -25,6 +25,12 @@ python 在 Windows 上把它当"当前盘符根路径" → **凭空造出 `C://c
 （真踩过：`SRC = r"$SRC".replace("/", "\\")` 这种拼法，脚本后面报错了，但 `os.makedirs` 已经先执行，
 垃圾留下了。）**正确做法**：路径直接在 python 里写成 `r"C://Users//<用户名>//..."`，
 或从 `os.path.expanduser` 拿。
+
+**⚠️ 反向：python 的 stdout 给 bash 用时，必须去 `\r`** —— Windows 版 python 输出是 `\r\n`，
+bash 的 `read` / `case` 会把 `\r` 一起吃进去（变量实际是 `OK\r`，匹配不上 `case OK)`，
+表现成"莫名失败 / 查不到结果"）。修法：管道后加 `tr -d '\r'`，或 `v="${v%$'\r'}"`。
+（真踩过：`read -r latest state < <(python -c ...)` 拿到的 state 带 `\r` → case 永远落到默认分支，
+而同一段 python 在交互式终端手测却是对的，极易误判成网络问题。）
 
 **⚠️ 写给别人复制粘贴的命令，一律用正斜杠** —— bash 里 `\U` `\c` `\w` 会被当转义符吃掉，
 `C:\Users\...` 会变成 `C:Users...` 然后报 command not found。

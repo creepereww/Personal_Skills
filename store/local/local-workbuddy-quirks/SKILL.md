@@ -1,7 +1,7 @@
 ---
 name: local-workbuddy-quirks
-description: WorkBuddy 这个客户端特有的运行时行为与对策（本 skill 只挂在 WorkBuddy 下）。含 Bash 工具缺 coreutils 的根因与补丁、pwsh 工具输出 100% 拿不回来的绕过方式、被安全策略禁掉的命令、沙箱代理注入，以及"改文件必须回读验证"的纪律。在本客户端里跑 shell / pwsh 命令、遇到 command not found、改完文件要确认落盘时看这里。
-version: v0.1
+description: WorkBuddy 这个客户端特有的运行时行为与对策（本 skill 只挂在 WorkBuddy 下）。含 Bash 工具缺 coreutils 的根因与补丁、pwsh 工具输出 100% 拿不回来的绕过方式、被安全策略禁掉的命令、沙箱代理注入、git push 被凭证弹框卡住，以及"改文件必须回读验证"的纪律。在本客户端里跑 shell / pwsh 命令、遇到 command not found、push 卡住、改完文件要确认落盘时看这里。
+version: v0.2
 ---
 
 # WorkBuddy 客户端备忘
@@ -110,6 +110,31 @@ PATH 里只能写死 `versions\1.2.0\cmd`，升级 PortableGit 后就失效 —�
 
 `HTTP_PROXY` / `HTTPS_PROXY` 指向 `http://127.0.0.1:<port>`（WorkBuddy 的沙箱代理）。
 它属于沙箱机制，**不要改**；个别直连被它挡时，在 Python 里 `session.trust_env = False` 绕过。
+
+## git 凭证：会弹 GUI 框卡住 push
+
+**症状**：`git push` 卡住不结束、最后超时被杀；桌面上其实冒了个「选择凭证助手」弹窗
+在等人点（选项 `<no helper>` / `manager` / `wincred`）。`GIT_TERMINAL_PROMPT=0`
+只挡命令行提示，**挡不住这个 GUI**。
+
+**根因**：WorkBuddy 内置 PortableGit 的 **system 级 gitconfig** 写死了
+`credential.helper=helper-selector`。而 `credential.helper` 在 git 里是**累加**的
+—— system 那条排在 local 之前先被调用 → 先弹框。
+
+**修法**（只改该仓库的 `.git/config`，不动 system 级）：先清空、再只留 GCM。
+
+```bash
+git config --local --replace-all credential.helper ""     # 空值 = 清空累积出来的列表
+git config --local --add credential.helper "<GCM 路径>"
+```
+
+**验证**（确认没被 system 那条插队）：
+```bash
+printf "protocol=https\nhost=github.com\n\n" | GIT_TRACE=1 git credential fill 2>&1 | grep -i helper
+# 只出现 git-credential-manager 即干净
+```
+
+⚠️ 易误判：**push 卡住不一定是网络**。判断法 —— `fetch` 能通但 `push` 卡，先看有没有弹框。
 
 ## 已排查过、确认不用管的
 

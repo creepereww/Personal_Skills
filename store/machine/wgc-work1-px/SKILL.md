@@ -1,7 +1,7 @@
 ---
 name: wgc-work1-px
-description: 公司电脑 WGC-WORK1-PX 的本机环境事实 —— 机型（Lecoo）、HOME 与 %USERPROFILE% 错位（HOME 在 D:\AppData\Roaming\SPB_Data）、git 装在 D:\Git、装了哪些 agent（WorkBuddy/ZCode/QClaw/Codex/MarsCode/Trae，QClaw 数据在 D 盘）、两条磁盘余量、**推送 GitHub 的正确姿势**（github.com:443 时通时断 + schannel 坑：要绕开沙箱代理、用 openssl 后端、GIT_TERMINAL_PROMPT=0 走 GCM 已存凭证、多重试）、Everything 1.4.1.1029 在 D:\ 但没装 es.exe。在这台机器上要判断"某个工具/客户端在哪、网络通不通、怎么 push"时看这里。通用规则（路径格式、junction、命名）见 local-windows-shell-conventions。
-version: v0.4
+description: 公司电脑 WGC-WORK1-PX 的本机环境事实 —— 机型（Lecoo）、HOME 与 %USERPROFILE% 错位（HOME 在 D:\AppData\Roaming\SPB_Data）、git 装在 D:\Git（与 bash 里的 PortableGit git 是两套，system 凭证配置不同）、装了哪些 agent（WorkBuddy/ZCode/QClaw/Codex/MarsCode/Trae，QClaw 数据在 D 盘）、两条磁盘余量、**推送 GitHub 的正确姿势**（github.com:443 时通时断、两个 TLS 后端随网络路径互换、要绕开沙箱代理、走 GCM 已存凭证、多重试；已固化成 scripts/push.ps1）、Everything 1.4.1.1029 在 D:\ 但没装 es.exe。在这台机器上要判断"某个工具/客户端在哪、网络通不通、怎么 push"时看这里。通用规则（路径格式、junction、命名）见 local-windows-shell-conventions。
+version: v0.6
 ---
 
 # wgc-work1-px（公司电脑）
@@ -116,9 +116,19 @@ version: v0.4
 3. **`credential.helper` 默认是 `helper-selector`**（来自 WorkBuddy PortableGit 的 system gitconfig），
    非交互环境下会**卡住等 GUI 选凭证**（表现为 push 挂起，直到 120s 超时被 SIGTERM）；
    即使绕开它，也可能报 `could not read Username for 'https://github.com': terminal prompts disabled`。
-   → 必须**显式指定 GCM 当凭证助手**。GCM 里**已存凭证**（`creepereww` + token，可用
+   → 根治**不是**在命令行临时显式指定，而是**在仓库 local config 里"空值重置 + 只留 GCM"**
+   （只 `--add` 一条 GCM **不清空 system 那条，弹框还会冒**）。详见 `local-workbuddy-quirks`
+   「git 凭证：会弹 GUI 框卡住 push」。GCM 里**已存凭证**（`creepereww` + token，可用
    `echo -e "protocol=https\nhost=github.com\n" | /mingw64/bin/git-credential-manager get` 取到）。
 4. `github.com:443` 本身**时通时断** —— 一次不行就**多重试几次**（实测第 2~4 次才成功）。
+
+> **⚠️ 这台机有两个 git，system 配置不一样**（实测）：
+> - **bash 里** `which git` → PortableGit 的 `/mingw64/bin/git`（2.55），system config = **`helper-selector`**
+> - **PowerShell 里** `Get-GitExe` → `D:\Git\cmd\git.exe`，system config = **`manager`**
+>
+> 所以「弹凭证框」只在 **bash** 下踩得到。PowerShell 里跑（含 `scripts/push.ps1`）走的是 D:\Git 的 git，
+> system 那条不是 helper-selector，不会弹。两边读的**仓库级 `.git/config` 是同一份**（空值重置 + GCM），
+> 所以实际生效的凭证链都干净。
 
 **可用命令**（一次跑通；不行就重试）：
 ```bash
@@ -131,11 +141,20 @@ env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY GIT_TERMINAL_PROMP
 **永久固化**（免得每次敲这么长 —— 已对本仓库设好）：
 ```bash
 git config http.sslBackend openssl
-git config credential.helper /mingw64/bin/git-credential-manager
+git config --local --replace-all credential.helper ""     # 先清空 system 累积的列表（helper-selector）
+git config --local --add credential.helper /mingw64/bin/git-credential-manager
 ```
 之后只要绕开代理即可：`env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY git push`
 
 > `git-credential-manager` 路径：`/mingw64/bin/git-credential-manager`（Git for Windows 自带）。
+
+**一键推送**（推荐 —— 上面这些已固化成脚本）：
+```bash
+pwsh ~/.skills/scripts/push.ps1
+```
+它自动做四件事：绕开沙箱代理 → 在 openssl / schannel 之间交替重试 → **先 fetch 检测**
+（远端领先就先 rebase 再推，免得 non-fast-forward 被拒）→ push。
+`-DryRun` 只看不推；`-Log out.txt` 结果落盘；`-NoRebase` 落后时停手让你手工处理。
 
 ## Everything / es
 

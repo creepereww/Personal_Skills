@@ -1,6 +1,9 @@
 # 远程 skill 缓存：能从 GitHub 重拉，不进仓库
 store/cache/
 
+# EasyEDA 连接器产出的中间工件（.enet 网表等）：每次跑都会重新生成
+.easyeda/
+
 # 本机联接视图：Windows junction 会被 git 当成普通目录，重复提交内容
 _active/
 

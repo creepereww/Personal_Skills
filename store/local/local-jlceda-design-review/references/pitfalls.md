@@ -8,15 +8,19 @@
 
 ---
 
-## A. 连接与环境
+## A. 连接与环境（easyeda-agent 栈）
 
-- `curl /health` 返 **502 Bad Gateway** 但 bridge 明明活着 → 沙箱/CI 注入了 `http_proxy`，把 `127.0.0.1` 也代理走了。
-  跑任何脚本前 `export no_proxy="127.0.0.1,localhost"`。
-- `edaConnected:false` 一直不变 → 扩展自动重试约 5 次即停；bridge 重启或 EDA 先启动都会错过。
-  先**长轮询** `/health`（数十秒）；仍不通请用户在扩展里点 **API Gateway → 重新连接**。
-- 长流程跑到一半报 `EDA window "…" disconnected` → 扩展重连后 **`windowId` 变了**。
-  重连会**丢未保存编辑** ⇒ **审查前务必确认工程已保存**；长审查中间也要留意连接是否重新建立。
-- **读/写前都核对当前工程与当前文档**（用户可能同时开着别的工程，如云端原稿与本地副本）。
+- 健康与版本：`easyeda daemon health`、`easyeda update --check`。CLI 不在 PATH 时用全路径或 `$EASYEDA_BIN`。
+- **前台文档决定命令可用性**：`sch_*` 要前台是**原理图**、`pcb_*` 要前台是 **PCB**，否则报
+  `获取所有器件失败` / 板框读回 `null`。脚本已自动 `doc open` 切前台；手敲命令时先切。
+- **`--project` 只做路由、不切前台**：同时开着多个工程/窗口时，不同栈可能绑到不同窗口
+  ⇒ 先 `easyeda doc ls --project X` 确认，再操作。
+- **版本一致性**：`daemon health` 里的 `connector x.y.z` 应与 CLI 同版；不一致时 `versionGate` 报警
+  （新版 CLI 仅诊断、不阻塞，但个别 handler 可能走偏）。连接器**按页面加载** —— 网页版每个 EDA 标签页
+  是一个独立扩展实例 ⇒ 升级 / 改权限后必须**关掉所有 EDA 标签页再重开**；只刷新一个会留旧实例继续抢 daemon。
+- **"允许外部交互"权限不开，连接器根本不拨号**：`sys_WebSocket.register()` 无权限时直接抛错，
+  症状是 `daemon health` 的 `windows: []` 且 daemon 侧**零连接尝试**。改权限后要完全重启 EDA。
+- **审查前确认工程已保存**（只读命令不写盘，但用户未保存的编辑会体现在读回数据里）。
 
 ---
 
@@ -64,11 +68,14 @@
 - **层号表**：`TOP=1 / BOTTOM=2 / SILK=3,4 / MASK=5,6 / PASTE=7,8 / OUTLINE=11 / MULTI=12`；
   **内层从 15 起**（`In1=15 / In2=16`…）。⚠ `getAllLayers()` 会列出全部 Inner，**别按列表顺序推层号**。
 - **组件类型判据是「小写字符串」**：`getState_ComponentType()` 返回 `'part'`（普通器件）/ `'netflag'`（网络标签）/
-  `'sheet'`（图纸）；而 `ESCH_PrimitiveComponentType` / `ESYS_NetlistType` 等全局枚举在 bridge 执行环境里是
-  **`undefined`**。按 `=== 'COMPONENT'` 判等会**恒不成立**（踩过：region 导出误报"没有普通器件"）。
+  `'sheet'`（图纸）；而 `ESCH_PrimitiveComponentType` / `ESYS_NetlistType` 等全局枚举在 `debug exec`
+  执行环境里是 **`undefined`**。按 `=== 'COMPONENT'` 判等会**恒不成立**（踩过：region 导出误报"没有普通器件"）。
 - **ENET 网表会漏器件**：`getNetlistFile` 的 `components` 以器件 **Unique ID** 为键，**UniqueId 为空的器件整条缺失**
-  （典型：未转 PCB 的遗留占位）⇒ **器件数对账 / 重复位号检查要用 `sch_PrimitiveComponent.getAll()`**，别只信 ENET。
-- **选区跨 `/execute` 请求不保持**：程序化 `doSelectPrimitives()` 的选区在下一次请求里读不到（用户手动框选的可读到）。
+  （典型：未转 PCB 的遗留占位、屏蔽区域占位）⇒ **器件数对账 / 重复位号检查要用 `sch list`**，别只信 ENET。
+- **选区跨请求不保持**：程序化 `doSelectPrimitives()` 的选区在下一次请求读不到（用户手动框选的可读到）
+  ⇒ region 类导出要么让用户手动框选，要么把"选中 + 导出"放进**同一次** `debug exec`。
+- **`sch connectivity` 遇重复位号会整体拒绝导出**（报 `duplicate component cmp-XX`）—— 遇脏数据即挂，
+  这是它和"更宽容的取数"最大的差别。修法只有**改设计**（换位号 / 把占位改成非器件），命令层没有 exclude/ignore 开关。
 
 ---
 
@@ -93,11 +100,12 @@
 
 **其他判读陷阱**：
 
-- **DRC / ERC 不能想当然当判据**：在**离线/本地模式**下，`pcb_Drc.check()` 可能**恒 false**、
-  原理图 ERC 可能**恒返固定错误**、网表接口返 `undefined`（"假绿"）。
-  ⚠️ **但本机 run-api-gateway + bridge 环境下实测 DRC 是能返回具体违规的**（曾拿到 PCB 4 条违规 + 原理图 PIN2PAD error）。
-  ⇒ 结论：**DRC 结果必须实测确认、逐条真伪分拣**——既不全信，也不因"已知会假绿"就全不信；
+- **DRC / ERC 不能想当然当判据**：`pcb_Drc.check()` 在某些模式下可能**恒 false**、网表接口返 `undefined`（"假绿"）。
+  ⇒ **DRC 结果必须实测确认、逐条真伪分拣**——既不全信，也不因"已知会假绿"就全不信；
   凡 DRC 报的，都**回原始数据核实**（网名 / 坐标 / 实测间距）。
+- ★ **检查器会"报多"，且可能自相矛盾**：实测 `sch check` 报的 8 处 `wire-contact`（异网短路），
+  被同一工具的专用命令 `sch bridge-check` 判为 **0 真短路**；用 `debug exec` 读导线坐标自写
+  "端点∈异网线段" 复核也是 **0 处接触**。⇒ 高 severity 项**必须交叉验证**再下结论，别直接照抄计数。
 - **页框是表格型符号**，自带一批文字 ⇒ 数原理图文字/器件时**别用绝对计数**（实测"自己 10 条文字读出 37 条"）。
   ★ 判页框看**符号 uuid**。
 - **导线对账要三归一化**（否则刷一堆假差异）：丢**零长段**、丢**斜段**、
@@ -116,8 +124,9 @@
 ## H.（背景）改板专属 —— 审查用不到，动手修时才需要
 
 > 这些是"写"侧的坑：文字改删只能走**页源文本手术**（`getDocumentSource` → 改 → `setDocumentSource`）；
-> 导线改坐标只能 **delete + create**（`modify` 分支无效）；单次桥接调用 **30s 上限**要分批（wire/poly/text 每批约 15 条）；
-> 库/器件 uuid 规则、页签额度（约 38 个封顶）、批量写要幂等去重、每实例唯一 symbol/device uuid……
+> 导线改坐标只能 **delete + create**（`modify` 分支无效）；单次 `debug exec` 默认 **20s 超时**（`--timeout` 可调）
+> 要分批（wire/poly/text 每批约 15 条）；库/器件 uuid 规则、页签额度（约 38 个封顶）、
+> 批量写要幂等去重、每实例唯一 symbol/device uuid……
 >
 > **审查是只读的，先不展开。** 等真要动手改板时，回看该 skill 的 `references/pitfalls.md` 原文（含 A–K 全部 80+ 条）。
 > 获取方式：SkillHub 详情页 `/api/v1/skills/easyeda-sch-to-pcb/files` 列出文件，`/file?path=<文件>` 拿到下载直链。

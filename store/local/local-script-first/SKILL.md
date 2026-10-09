@@ -1,7 +1,7 @@
 ---
 name: local-script-first
 description: 把确定性、会重复的操作固化成脚本，执行时优先跑现成脚本而不是重新推一遍。含什么该转脚本的判据、脚本要怎么写（幂等/失败要响/回读验证/退出码约定）、以及怎么保证"有脚本就直接跑"。触发：又要做一遍那个操作、批量处理、重复劳动、写个脚本、固化成脚本、有没有现成的脚本、别重复造轮子、这个流程能自动化吗。
-version: v0.1
+version: v0.2
 ---
 
 # 脚本优先：能固化的操作就别每次重想
@@ -97,6 +97,7 @@ version: v0.1
 | `~/.skills/scripts/sync-preferences.ps1` | 把 `preferences.md` 分发到各 agent 的用户级指引 |
 | `~/.skills/scripts/pull.ps1` | 从 GitHub 拉远程 skill 到 `store/cache/` |
 | `~/.skills/scripts/sync.ps1` | 提交 + 拉取 + 推送 + 刷新挂载 |
+| `~/.skills/scripts/check-skillhub-update.sh` | 查 SkillHub CLI 与已装 skill 有无新版本；末行固定输出 `STATUS=NO_UPDATE/HAS_UPDATE/CHECK_FAILED` 供自动化解析，只读不下载 |
 | `local-bilibili-transcribe/scripts/bili_transcribe.py` | B 站取流/抽音轨/转写一条龙 |
 | `local-html-kb-maintain/scripts/add_water_chapter_renumber.py` | 插章 + 后续章节重编号的参考实现 |
 | `local-skill-creator-anthropics-skills/scripts/*` | 评测跑批、聚合基准、生成报告等 |

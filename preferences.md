@@ -46,4 +46,6 @@
 
 - 本机所有 skill 的单一实体在 `~/.skills`，规则看 `local-skills-hub`
 - 这环境里有些坑只有本机才有，遇到怪问题先查 `local-windows-shell-conventions`、`local-workbuddy-quirks`，以及本机对应的 machine 档（`store/machine/<主机名>/`）
+- **技能发现/安装优先用 SkillHub**（`skillhub search` / `install` / `update`，国内源更快），不可用或无匹配再回退 `clawhub` 并说明；装之前汇总来源、版本、风险再动手
+- SkillHub CLI 已装：命令 `~/.local/bin/skillhub`，脚本与配置在 `~/.skillhub/`（非登录 shell 的 PATH 可能不含 `.local/bin`，必要时用完整路径）。装技能**必须**带 `--dir <当前 agent 的 skills 目录>`，否则默认落到 `./skills/` 不被识别
 <!-- SYNC:END -->

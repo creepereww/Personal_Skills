@@ -1,35 +1,36 @@
-# 连接关系 JSON：两种格式与自行获取
+# 连接关系 JSON：几种格式与获取
 
-审查原理图时，**连通性真值**有两条来源，都是"抽象层"，不必自己从坐标重建：
+审查原理图时，**连通性真值**是"抽象层"，不必自己从坐标重建：
 
 | 来源 | 是什么 | 覆盖 | 获取 |
 |---|---|---|---|
-| **ENET 网表** | 嘉立创官方网表（`ESYS_NetlistType.JLCEDA_PRO`） | **全工程** | `scripts/export_connection.mjs`（内置） |
-| **jlc-schematic-region** | 插件《让AI看看你的原理图》的「导出连接关系」格式 | **仅框选区域** | 插件菜单，或 `--mode region`（内置复刻） |
+| **ENET 网表** | 嘉立创官方网表（`ESYS_NetlistType.JLCEDA_PRO`） | **全工程** | `easyeda sch netlist`（`scripts/export_connection.py --mode netlist`） |
+| **connectivity IR** | connector 的布局无关连通性（`schemaVersion 1.x`） | **全工程** | `easyeda sch connectivity`（`--mode connectivity`） |
+| **jlc-schematic-region** | 插件《让AI看看你的原理图》的「导出连接关系」格式 | **仅框选区域** | **插件菜单手动导出**（本 skill 不再内置该导出；仍可被 `scripts/parse_enet.py` 解析） |
+
+> ENET 优先（最权威、有物料字段）；connectivity IR 的好处是额外带 **`issues[]`**（如 `unconnected-pin`）
+> 且**含 ENET 漏掉的无 UniqueId 器件**。
 
 ---
 
-## 1. 内置获取（无需手动导出）
+## 1. 获取（无需手动导出）
 
 ```bash
-node scripts/export_connection.mjs <outDir>            # 默认导全工程 ENET 网表
-node scripts/export_connection.mjs <outDir> --mode region   # 复刻插件：先在 EDA 里框选再跑
-node scripts/parse_enet.mjs <outDir>/netlist.enet.json [out.json]   # 规范化 + 可读输出
+python scripts/export_connection.py <outDir> --project <名> --mode all   # netlist + parts + connectivity + check
+python scripts/parse_enet.py <outDir>/netlist.enet.json [out.json]       # 规范化 + 可读输出（也吃 connectivity IR）
 ```
 
-关键 API（都与 `easyeda-api` 桥接无关，是 EDA 官方 API）：
+若某条 typed 命令不可用，`export_connection.py` 会自动回退到 `debug exec` + 官方 API 取同一份数据：
 
 - `eda.sch_ManufactureData.getNetlistFile(name?, ESYS_NetlistType)` → `Promise<File>`，`.text()` 得网表文本。
   - `ESYS_NetlistType.JLCEDA_PRO === 'JLCEDA'`（另有 `EASYEDA_PRO='EasyEDA'`、`ALTIUM_DESIGNER='Protel2'`、`PADS`、`ALLEGRO`、`DISA`）。
   - ⚠️ **不是** `sch_Netlist.getNetlist()`（那个已废弃、会超时）。这是两回事，别混。
-- 选区：`eda.sch_SelectControl.getAllSelectedPrimitives_PrimitiveId()` → ids → `eda.sch_Primitive.getPrimitivesByPrimitiveId(ids)`
-- 器件引脚：`eda.sch_PrimitiveComponent.getAllPinsByPrimitiveId(primitiveId)`
-  - 引脚取值为 `getState_PinNumber()` / `getState_PinName()` / **`getState_pinType()`（小写 p）** / `getState_NoConnected()`
+- 器件全量：`eda.sch_PrimitiveComponent.getAll()`（**含无 UniqueId 器件**，ENET 会漏）
 - 器件判据（**实测**）：`getState_ComponentType()` 返回**小写**字符串 —— `'part'`（普通器件）/ `'netflag'`（网络标签）/
-  `'sheet'`（图纸）。**不要**与 `ESCH_PrimitiveComponentType.COMPONENT` 比较：该全局枚举在 bridge 执行环境里是
-  `undefined`，比较会恒不匹配（本流程真踩过 → region 导出误报"没有普通器件"）。用 `String(t).toLowerCase() === 'part'`。
+  `'sheet'`（图纸）。**不要**与 `ESCH_PrimitiveComponentType.COMPONENT` 比较：该全局枚举在 `debug exec`
+  执行环境里是 `undefined`，比较会恒不匹配（本流程真踩过 → region 导出误报"没有普通器件"）。
 
-**前置**：SCH_* API 要求当前激活文档是原理图；`getNetlistFile` 返回空多半是激活的不是原理图页。
+**前置**：`sch_*` 命令要求前台文档是**原理图**；`getNetlistFile` 返回空多半是激活的不是原理图页。
 
 ---
 
@@ -83,9 +84,9 @@ node scripts/parse_enet.mjs <outDir>/netlist.enet.json [out.json]   # 规范化 
 - `generated`：`true` 表示原网名是自动生成（`N$数字` / `$数字N数字`）。
 - **不含坐标**：`primitiveId` / `x` / `y` / `rotation` / `line` 是插件明确禁止出现在正文里的字段。
 - 插件版每个器件另带 `referenceProperties{key, more}`（只读物性，供 AI 识别型号/参数，导入时被忽略）。
-- 内置 `export_region.js` 的器件判据同样按小写 `'part'`；且**选区跨 `/execute` 请求不保持** ——
+- 判读按 `componentType`（小写 `'part'` / `'netflag'` / `'sheet'`）；且**选区跨请求不保持** ——
   用户手动框选的选区能被读到，但程序化 `doSelectPrimitives()` 的选区在下一次请求里读不到。
-- 若框选区域**存在重复位号**，导出会被拒绝（位号必须唯一），需先修重复位号。
+- 若框选区域**存在重复位号**，插件导出会被拒绝（位号必须唯一），需先修重复位号。
 
 ---
 
@@ -101,8 +102,6 @@ node scripts/parse_enet.mjs <outDir>/netlist.enet.json [out.json]   # 规范化 
 ## 5. 来源与许可
 
 - `jlc-schematic-region` 格式逆向自插件《让AI看看你的原理图》（`schematic-structure-text-bridge`，Apache-2.0），
-  上游 <https://github.com/2549850807/Let-the-AI-look-at-the-schematic>。本 skill 只做**格式说明 + 自行重写**的等价实现，
-  未整包拷贝分发。
-- 内置的 `export_region.js` 与插件导出的字段**基本兼容**；唯一差别：本实现把 `footprint` 直接放在 `components[]` 上
-  （插件放在 `referenceProperties.key.footprint`，且导入时被忽略），因此不影响插件侧导入。
+  上游 <https://github.com/2549850807/Let-the-AI-look-at-the-schematic>。本 skill 只做**格式说明**（并保留
+  `parse_enet.py` 对该格式的**解析**），未整包拷贝分发、不再内置该格式的导出实现。
 - ENET 格式来自嘉立创官方网表 API（`ESYS_NetlistType.JLCEDA_PRO`）；字段名已按实机导出（JLCEDA Pro v2.0.0）核对。

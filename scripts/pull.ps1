@@ -1,6 +1,7 @@
 # pull.ps1 —— 按需拉取远程（GitHub）skill 到 store/cache/
 # 用法（PowerShell 7）：
 #   pwsh .\pull.ps1 -All                拉取 registry.json 里全部 remote 条目
+#   pwsh .\pull.ps1 -All -DryRun        只列出会拉什么，不联网、不回写 registry（安全预演）
 #   pwsh .\pull.ps1 -Id summarize       只拉一个
 #   pwsh .\pull.ps1 -Id summarize -Force  已缓存也重新拉
 #
@@ -13,7 +14,8 @@
 param(
     [string]$Id = "",
     [switch]$All,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$DryRun
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,8 +47,15 @@ if ($Id)      { $targets = @($targets | Where-Object { $_.id -eq $Id }) }
 elseif (-not $All) { throw "请指定 -Id 或 -All" }
 
 $log = @()
+$changed = $false
 
 foreach ($t in $targets) {
+    # skillhub 源的条目由 skillhub CLI 拉取/升级，这里不管 —— 否则会拿去查 GitHub 而报错
+    if ($t.PSObject.Properties['source'] -and $t.source -eq 'skillhub') {
+        $log += ("SKIP     {0,-14} skillhub 源，用 skillhub CLI 处理" -f $t.id)
+        continue
+    }
+
     $repo  = $t.repo
     $path  = if ($t.PSObject.Properties['path'] -and $t.path) { $t.path } else { "" }
     $cacheDir = Join-Path $root "store\cache\$($t.id)"
@@ -64,6 +73,10 @@ foreach ($t in $targets) {
     }
 
     $log += ("PULL     {0,-14} {1} {2}" -f $t.id, $repo, $(if ($path) { "[$path]" } else { "(整仓)" }))
+    if ($DryRun) {
+        $log += "         (dry-run：不联网、不下载、不回写)"
+        continue
+    }
 
     try {
         $meta   = Invoke-GitHubApi "/repos/$repo"
@@ -89,6 +102,7 @@ foreach ($t in $targets) {
         if (Test-Path $cacheDir) { Remove-Item $cacheDir -Recurse -Force }
         New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
 
+        $ok = 0
         foreach ($f in $files) {
             $rel = $f.path
             if ($path -and $rel.StartsWith($path + '/')) { $rel = $rel.Substring($path.Length + 1) }
@@ -97,28 +111,49 @@ foreach ($t in $targets) {
                 $content = Invoke-RestMethod -Uri $rawUrl -Headers $headers -TimeoutSec 30
                 if ($content -isnot [string]) { $content = $content | ConvertTo-Json -Depth 20 }
                 Save-TextFile (Join-Path $cacheDir $rel) $content
+                $ok++
             }
             catch {
                 $log += ("         WARN 下载失败: {0}" -f $rel)
             }
         }
 
+        # 关键保护：一个文件都没下到（典型是 raw.githubusercontent.com 不通）时，
+        # 回滚刚建的空目录并跳过回写 —— 不再改动 commit/cached/mount/pulled_date
+        if ($ok -le 0) {
+            if (Test-Path $cacheDir) { Remove-Item $cacheDir -Recurse -Force }
+            $log += ("         FAIL 全部 {0} 个文件下载失败，已删除空目录，registry.json 未改动" -f $files.Count)
+            continue
+        }
+        if ($ok -lt $files.Count) { $log += ("         WARN 部分失败：成功 {0}/{1}" -f $ok, $files.Count) }
+
         $t.commit = $sha
         $t.cached = $true
+        # mount 只在条目尚无该字段时补默认 true；已有显式值（含 false）一律保留，不再强制打开
         if (-not $t.PSObject.Properties['mount']) { $t | Add-Member -NotePropertyName mount -NotePropertyValue $true }
-        else { $t.mount = $true }
         if (-not $t.PSObject.Properties['pulled_date']) { $t | Add-Member -NotePropertyName pulled_date -NotePropertyValue "" }
         $t.pulled_date = (Get-Date).ToString("yyyy-MM-dd")
-        $log += ("         已保存到 store\cache\{0}" -f $t.id)
+        $changed = $true
+        $log += ("         已保存到 store\cache\{0}（{1} 个文件）" -f $t.id, $ok)
     }
     catch {
         $log += ("         FAIL: {0}" -f $_.Exception.Message)
     }
 }
 
-$regJson = $reg | ConvertTo-Json -Depth 20
-[System.IO.File]::WriteAllText($regPath, $regJson, (New-Object System.Text.UTF8Encoding($false)))
-
-$log += ""
-$log += "提示：拉完记得挂载 —— pwsh $(Join-Path $PSScriptRoot 'link.ps1')"
+if ($DryRun) {
+    $log += ""
+    $log += "dry-run 完成：未联网、未写任何文件，registry.json 保持原样"
+}
+elseif ($changed) {
+    $regJson = $reg | ConvertTo-Json -Depth 20
+    [System.IO.File]::WriteAllText($regPath, $regJson, (New-Object System.Text.UTF8Encoding($false)))
+    $log += ""
+    $log += "registry.json 已更新"
+    $log += "提示：拉完记得挂载 —— pwsh $(Join-Path $PSScriptRoot 'link.ps1')"
+}
+else {
+    $log += ""
+    $log += "本次无任何条目被改动，registry.json 未重写"
+}
 $log -join "`n"

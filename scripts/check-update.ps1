@@ -22,7 +22,9 @@ $headers = @{ "User-Agent" = "skills-hub-check-update" }
 if ($env:GITHUB_TOKEN) { $headers["Authorization"] = "Bearer $($env:GITHUB_TOKEN)" }
 
 $rows = @()
-$remoteList = @($reg.remote | Where-Object { -not $_.retired })
+# skillhub 源的条目不查 GitHub —— 它们由 skillhub CLI 安装/升级，更新检测走 check-skillhub-update.sh
+$skillhubList = @($reg.remote | Where-Object { -not $_.retired -and $_.PSObject.Properties['source'] -and $_.source -eq 'skillhub' })
+$remoteList   = @($reg.remote | Where-Object { -not $_.retired -and -not ($_.PSObject.Properties['source'] -and $_.source -eq 'skillhub') })
 
 foreach ($s in $remoteList) {
     $q = "/repos/$($s.repo)/commits?per_page=1"
@@ -56,7 +58,7 @@ foreach ($s in $remoteList) {
 }
 
 $out = @()
-$out += "远程 skill 共 $($remoteList.Count) 个"
+$out += "远程 GitHub skill 共 $($remoteList.Count) 个"
 $out += ""
 $out += ($rows | Format-Table -AutoSize | Out-String).TrimEnd()
 
@@ -67,6 +69,13 @@ if ($needUpdate.Count -gt 0) {
     $out += "更新命令：pwsh ~/.skills/scripts/pull.ps1 -Id <skill> -Force"
 } else {
     $out += "全部是最新 ✅"
+}
+
+if ($skillhubList.Count -gt 0) {
+    $out += ""
+    $out += "SkillHub 源（不查 GitHub，$($skillhubList.Count) 个）：$($skillhubList.id -join ', ')"
+    $out += "  其更新检测：bash ~/.skills/scripts/check-skillhub-update.sh"
+    $out += "  其升级：skillhub upgrade --dir C:/Users/cgw06/.skills/store/cache"
 }
 $out -join "`n"
 

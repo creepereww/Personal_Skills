@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
 description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时。含授权规则：完善中（v0.x）可直接改并回报，已完善（v1.0+）必须先确认或写 proposals/。
-version: v0.12
+version: v0.15
 ---
 
 # Skills Hub
@@ -15,7 +15,7 @@ version: v0.12
 ~/.skills/store/fork/    从 GitHub 派生的 skill（含 .upstream 溯源）
 ~/.skills/store/cache/   远程 skill 缓存（不进 Git）
 ~/.skills/store/machine/ 机器专属 skill，一个主机名一个目录，只挂本机那个
-~/.skills/routing.json   各 agent 挂载点 + 安装检测规则
+~/.skills/routing.json   各 agent 挂载点 + 安装检测 + 功能分组(groups)与 agent 画像
 ~/.skills/registry.json  远程 skill 清单
 ~/.skills/proposals/     待审批提案（只有 v1.0+ 的 skill 才需要走这里）
 ~/.skills/scripts/_common.ps1  共用探测函数（别在各脚本里重复实现）
@@ -27,9 +27,9 @@ version: v0.12
 
 | 这个事实… | 放哪 | 为什么 |
 |---|---|---|
-| 换台机器、换个 agent 都成立 | `store/local/` | 挂给所有已安装 agent |
+| 换台机器、换个 agent 都成立 | `store/local/` | 再按 `routing.json` 的 `groups` 归组，由各 agent 画像决定挂不挂 |
 | **只对某台机器成立**（磁盘路径、机型、网络实测） | `store/machine/<主机名>/` | 脚本只挂**本机主机名匹配**的那个，不会跑到别的机器上 |
-| **只对某个 agent 成立** | `store/local/` + `routing.json` 的 `skills` 段限制 client | 别的 agent 读到是噪音 |
+| **只对某个 agent 成立** | `store/local/` + `routing.json` 的 `groups` 分组 + 该 agent 画像 | 别的 agent 读到是噪音 |
 
 **机器专属信息绝不放 `store/local/`** —— 那会跟着 Git 跑到别的机器上，给出错误信息。
 （真踩过：`local-wgc-machine` 把家那台的「github.com:443 超时」带到了公司电脑上，
@@ -161,7 +161,8 @@ pwsh ~/.skills/scripts/sync-preferences.ps1     # 分发偏好（sync.ps1 不含
 
 1. 在 `store/local/` 建目录 `local-<slug>/`
 2. 写 `SKILL.md`，frontmatter 必须含 `name`（与目录名逐字符一致）、`description`、`version: v0.1`
-3. 跑 `link.ps1` —— 所有**已安装**的 agent 同时就位
+3. 在 `routing.json` 的 `groups` 里**归组**（决定哪些 agent 会挂它）；忘了归组 → 回退 `defaults.clients`（全挂）并在 link 报告里被点名
+4. 跑 `link.ps1` —— 按各 agent 画像挂载
 
 ## 用 skill-creator 创建 skill 时
 
@@ -169,24 +170,47 @@ pwsh ~/.skills/scripts/sync-preferences.ps1     # 分发偏好（sync.ps1 不含
 
 ## 内容要分清"跨 agent 通用"还是"某个 agent 专属"
 
-skill 是**一份实体挂给所有已安装 agent** 的（名单见 `routing.json` 的 `defaults.clients`）。所以写之前先问一句：
-**换成另一个 agent 来读，这段还有用吗？**
+技能不再全量挂给每个 agent：每个技能归入 `routing.json` 的某个 `groups` 组，每个 agent 有自己的**画像**（`clients.<name>.groups`），只挂画像所含组里的技能。写之前先问一句：
+**这段内容，换成另一个 agent 来读还有用吗？**
 
-> 别在文档里写死这个名单的数量 —— 新 agent（如 Qoder）接入后会变，看 `routing.json` 才是准的。
+> 别在文档里写死各 agent 画像 —— 新 agent 接入或调整画像后会变，看 `routing.json` 才是准的。
 
-- **通用**（路径格式、junction 用法、目录位置、机器坐标…）→ 留在 skill 里
-- **只对某个 agent 成立** → **拆出去**单独建 skill，并在 `routing.json` 里把它限制给那个 agent：
+- **通用**（路径格式、junction 用法、目录位置）→ 归 `core` 组，每个 agent 都挂
+- **按用途分**（技能开发 / 硬件EDA / 文件整理 / 视频转录 / 桌面知识库 / 云端接入）→ 归对应功能组，由各 agent 画像决定要不要
+- **只对某个 agent 成立** → 归它专属的组（如 `wb-only`），或在 `skills` 段做单点覆盖：
 
 ```json
-"skills": {
-  "local-workbuddy-quirks": {
-    "clients": ["workbuddy"],
-    "why": "内容全是 WorkBuddy 宿主特有的，别的 agent 读它纯属噪音"
-  }
+"groups": {
+  "wb-only": { "skills": ["local-workbuddy-quirks"], "why": "内容全是 WorkBuddy 宿主特有的，别的 agent 读它纯属噪音" }
 }
 ```
 
-`link.ps1` 会照这个名单挂载：不在名单里的 client **不挂**；如果之前已经挂过，还会顺手摘掉（输出里显示 `UNMOUNT`）。
+**挂载决策三级优先级**（从高到低）：`skills` 段单点例外 > `groups` 分组 > `defaults.clients` 兜底（未归组的技能）。**machine 档不归组**，按主机名匹配后挂给所有 client。
+
+`link.ps1` 按画像挂载：画像不含该技能所在组就**不挂**，已经挂过的会顺手摘掉（输出里显示 `UNMOUNT`）。
+
+### 画像的两种写法，以及"临时全挂"
+
+- **正列** `["core","eda"]` —— 只挂这两组。
+- **否定** `["*","!file-ops","!media"]` —— 全部组但排除这两组。
+  主 agent 用否定写法（WorkBuddy = `["*","!file-ops","!media","!desktop-kb","!cloud"]`）的理由：
+  新增或未归组的技能会**自动先挂到它身上**跑探索，稳定后再归组分配给别的 agent。
+- **运行期临时全挂**（不写盘、用完即还原）—— 这里的"运行期"指**这一次 `link.ps1` 执行**，跟对话无关；用于主 agent 临时要全套技能的场景：
+
+```powershell
+pwsh .\link.ps1 -OverrideGroups "workbuddy=*"       # 临时把 workbuddy 挂成全部技能
+pwsh .\link.ps1 -OverrideGroups "zcode=core,eda"    # 也能临时收窄/换一组
+pwsh .\link.ps1                                      # 再跑一次普通 link = 还原
+```
+
+    支持 `!` 否定（`"workbuddy=*,!media"`）；报告里会打 `⚠️ 运行期覆盖` 那行提醒 —— 它不是持久设置。
+
+**⚠️ 无论哪种改法，都要新开会话才生效。** agent 是在**会话启动时**扫描技能目录生成列表、并快照进 system prompt 的
+（WorkBuddy 的缓存落在 `~/.workbuddy/.skill-list-cache.json`），**对话中途改文件系统它不会重扫**。
+两种改法的差别只在**会不会自动回退**：
+
+- 改 `routing.json` 或改 skill 内容 → 持久，新会话生效后一直有效
+- `-OverrideGroups` 运行期覆盖 → 不写盘，同样要新会话才生效，但下次任意一次普通 `link.ps1` 自动还原
 
 **反例（真踩过，两次同源）**：`local-wgc-machine`（已拆解）犯过两次同类错误 ——
 
@@ -200,7 +224,7 @@ skill 是**一份实体挂给所有已安装 agent** 的（名单见 `routing.js
 
 **教训**：写一个 skill 前先问「这个事实**换台机器 / 换个 agent** 还成立吗」。
 只对某台机器成立的 → `store/machine/<主机名>/`（不会被挂到别的机器）；
-只对某个 agent 成立的 → `routing.json` 的 `skills` 段限制 client。
+只对某个 agent 成立的 → `routing.json` 的 `groups` 分组 + 该 agent 画像（或 `skills` 段单点覆盖）。
 
 ## description 长度规范
 
@@ -244,6 +268,8 @@ description 是唯一常驻上下文的字段，所有 skill 共享这笔预算�
 派生自 GitHub 的用 `local-<slug>-<reposlug>` 放 `store/fork/`，并在 `.upstream` 记录 `upstream_repo/path/base_commit/reason`（reason ≤3 行）。
 
 ## skill 没生效怎么查
+
+**先排除最常见的一种**：改了挂载或 skill 内容，却还留在**同一个对话**里 —— 必须新开会话（见"画像的两种写法"一节）。
 
 1. 是不是 junction 没刷新 → 跑 `link.ps1`
 2. 目录名与 frontmatter `name` 是否逐字符一致

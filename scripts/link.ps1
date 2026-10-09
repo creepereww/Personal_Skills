@@ -5,6 +5,9 @@
 #   pwsh .\link.ps1 -DryRun            只报告将要做什么，不动磁盘
 #   pwsh .\link.ps1 -Force             没检测到安装也强行建目录并挂载
 #   pwsh .\link.ps1 -ListClients       列出各 client 的安装检测结果后退出
+#   pwsh .\link.ps1 -OverrideGroups "workbuddy=*"   运行期临时改画像（可多次；不写盘，下次跑普通 link.ps1 自动还原）
+#
+# 画像写法：["core","eda"] = 只要这两组；["*"] = 全部组；["*","!file-ops","!media"] = 全部组但排除这两组。
 #
 # 规则：
 #   - 只建 junction（目录联接），不用 symlink —— 实测非管理员即可创建
@@ -14,6 +17,7 @@
 
 param(
     [string]$Client = "",
+    [string[]]$OverrideGroups = @(),
     [switch]$DryRun,
     [switch]$Force,
     [switch]$ListClients
@@ -121,8 +125,92 @@ if ($cfg.PSObject.Properties['skills']) {
     }
 }
 
+# 功能分组：groups 段定义「技能属于哪个组」，clients.<name>.groups 是各 agent 的画像。
+# 挂载决策（优先级从高到低）：
+#   1) skills 段单点例外   2) 技能所在组 ∈ client 画像   3) 未归组 -> defaults.clients
+#   machine 档不归组，按主机名匹配后挂给所有 client
+$skillGroup   = @{}    # 技能名 -> 组名
+$groupOrder   = @()    # 组名顺序（供报告）
+if ($cfg.PSObject.Properties['groups']) {
+    foreach ($gp in $cfg.groups.PSObject.Properties) {
+        if ($gp.Name.StartsWith('_')) { continue }
+        if (-not $gp.Value.PSObject.Properties['skills']) { continue }
+        $groupOrder += $gp.Name
+        foreach ($sk in @($gp.Value.skills)) {
+            if ($sk) { $skillGroup[[string]$sk] = $gp.Name }
+        }
+    }
+}
+
+# 运行期覆盖（-OverrideGroups "client=组1,组2|*"）：只影响本次运行，不写 routing.json。
+# 用途：临时把某个 client 挂成全部技能（如主 agent 跑探索期），下次普通 link.ps1 自动还原。
+$overrideSel = @{}
+foreach ($ov in @($OverrideGroups)) {
+    if (-not $ov) { continue }
+    if ($ov -notmatch '=') { throw "-OverrideGroups 格式应为 '<client>=<组1,组2|*|!组>'，收到: $ov" }
+    $parts = $ov -split '=', 2
+    $cn = $parts[0].Trim()
+    if (-not $cn) { throw "-OverrideGroups 缺少 client 名: $ov" }
+    $gs = @($parts[1].Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    if ($gs.Count -eq 0) { $gs = @("*") }
+    $overrideSel[$cn] = $gs
+}
+
+# 各 client 的画像。未声明 groups -> 视为全部组（["*"]，避免漏挂），报告里会提示。
+# 画像可写否定项："!组名" 配合 "*" 使用，表示「全部组但排除这些」。
+$clientSel = @{}
+foreach ($prop in $cfg.clients.PSObject.Properties) {
+    if ($prop.Name.StartsWith('_')) { continue }
+    if ($overrideSel.ContainsKey($prop.Name)) {
+        $clientSel[$prop.Name] = @($overrideSel[$prop.Name])
+    }
+    elseif ($prop.Value.PSObject.Properties['groups']) {
+        $clientSel[$prop.Name] = @($prop.Value.groups)
+    }
+    else {
+        $clientSel[$prop.Name] = @("*")
+    }
+}
+
+$defaultClients = @()
+if ($cfg.PSObject.Properties['defaults'] -and $cfg.defaults.PSObject.Properties['clients']) {
+    $defaultClients = @($cfg.defaults.clients)
+}
+
+# 单个技能是否应挂给某个 client（三级优先级见上）
+function Test-ShouldMount($skillName, $kind, $clientName) {
+    if ($skillClients.ContainsKey($skillName)) {
+        return ($clientName -in $skillClients[$skillName])
+    }
+    if ($kind -eq "machine") { return $true }
+    if ($skillGroup.ContainsKey($skillName)) {
+        $sel = $clientSel[$clientName]
+        if (-not $sel) { $sel = @("*") }
+        $g = $skillGroup[$skillName]
+        if ($sel -contains "*") {
+            # 全部组，但排除显式否定的组："!组名"
+            return -not ($sel -contains ("!" + $g))
+        }
+        return ($sel -contains $g)
+    }
+    return ($clientName -in $defaultClients)
+}
+
 $report = @()
 $report += "entities: " + $entities.Count + " (" + (($entities | Group-Object Kind | ForEach-Object { $_.Name + ":" + $_.Count }) -join " ") + ")"
+if ($groupOrder.Count -gt 0) {
+    $report += "groups: " + (($groupOrder | ForEach-Object { $_ + "(" + (@($cfg.groups.PSObject.Properties[$_].Value.skills)).Count + ")" }) -join " ")
+    $ungrouped = @($entities | Where-Object { $_.Kind -ne "machine" -and -not $skillGroup.ContainsKey($_.Name) -and -not $skillClients.ContainsKey($_.Name) })
+    if ($ungrouped.Count -gt 0) {
+        $report += "未归组（回退 defaults.clients）: " + (($ungrouped | ForEach-Object { $_.Name }) -join ", ")
+    }
+    $report += "client 画像: " + (($cfg.clients.PSObject.Properties | Where-Object { -not $_.Name.StartsWith('_') -and $_.Value.enabled } | ForEach-Object { $_.Name + "=[" + (@($clientSel[$_.Name]) -join ",") + "]" }) -join "  ")
+}
+if ($overrideSel.Count -gt 0) {
+    $report += "⚠️ 运行期覆盖（未写盘，下次跑普通 link.ps1 即还原）: " + (($overrideSel.Keys | ForEach-Object { $_ + "=[" + ($overrideSel[$_] -join ",") + "]" }) -join "  ")
+    $unknown = @($overrideSel.Keys | Where-Object { -not $clientSel.ContainsKey($_) })
+    if ($unknown.Count -gt 0) { $report += "⚠️ 覆盖指定的 client 不存在: " + ($unknown -join ", ") }
+}
 if ($skillClients.Count -gt 0) {
     $report += "per-skill 例外: " + (($skillClients.Keys | ForEach-Object { $_ + " -> [" + ($skillClients[$_] -join ",") + "]" }) -join "; ")
 }
@@ -209,8 +297,8 @@ foreach ($prop in $cfg.clients.PSObject.Properties) {
     foreach ($e in $entities) {
         $link = Join-Path $dir $e.Name
 
-        # routing 里给这个 skill 指定了 client 名单，而当前 client 不在名单里 -> 不挂，已有的顺手摘掉
-        if ($skillClients.ContainsKey($e.Name) -and ($name -notin $skillClients[$e.Name])) {
+        # 该 client 按画像/例外规则是否该挂这个技能 -> 不该挂就摘掉（已有的顺手摘）
+        if (-not (Test-ShouldMount $e.Name $e.Kind $name)) {
             if (Test-Path $link) {
                 $it = Get-Item $link -Force
                 if (($it.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
@@ -219,7 +307,7 @@ foreach ($prop in $cfg.clients.PSObject.Properties) {
                     if ($t2 -and $t2.StartsWith((Join-Path $root "store"), [StringComparison]::OrdinalIgnoreCase)) {
                         if (-not $DryRun) { Remove-JunctionOnly $link }
                         $pruned++
-                        $report += ("UNMOUNT  {0,-10} {1}（routing 规定此 client 不挂）" -f $name, $e.Name)
+                        $report += ("UNMOUNT  {0,-10} {1}（不在该 client 画像内）" -f $name, $e.Name)
                     }
                 }
             }
