@@ -28,8 +28,8 @@
     },
     "eda": {
       "label": "硬件 / EDA 设计",
-      "why": "立创EDA/EasyEDA 领域；四个技能触发范围高度重合，只给做硬件设计的 agent",
-      "skills": ["local-jlceda-design-review", "easyeda-agent-connector", "pcb-design-assistant"]
+      "why": "立创EDA/EasyEDA 领域；两个技能触发范围高度重合，只给做硬件设计的 agent（取数走 connector，审查走 design-review）",
+      "skills": ["local-jlceda-design-review", "easyeda-agent-connector"]
     },
     "file-ops": {
       "label": "文件整理",

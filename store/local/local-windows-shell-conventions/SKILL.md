@@ -1,7 +1,7 @@
 ---
 name: local-windows-shell-conventions
-description: Windows 上跨机器通用的 shell 与链接约定 —— MSYS 程序的 /c/ 路径 vs Windows 原生程序的 C:/ 路径该用哪种、junction 目录联接的正确建删方式、Git for Windows 把 junction 当普通目录的坑、skill 目录命名正则、各 AI 客户端的 skills 目录、主机名大小写匹配。写 shell 脚本、建软链接、排查路径报错或 skill 没生效时看这里。机器专属信息（机型、客户端装在哪个盘、网络情况）见 machine 档；WorkBuddy 的 skill/专家机制见 local-memory-map。
-version: v0.5
+description: Windows 上跨机器通用的 shell 与链接约定 —— MSYS 程序的 /c/ 路径 vs Windows 原生程序的 C:/ 路径该用哪种、junction 目录联接的正确建删方式（含"不能指向 UNC 路径"这个静默坑）、Git for Windows 把 junction 当普通目录的坑、skill 目录命名正则、各 AI 客户端的 skills 目录、主机名大小写匹配。写 shell 脚本、建软链接、打通 WSL 与 Windows 目录、排查路径报错或 skill 没生效时看这里。机器专属信息（机型、客户端装在哪个盘、网络情况）见 machine 档；WorkBuddy 的 skill/专家机制见 local-memory-map。
+version: v0.6
 ---
 
 # Windows Shell 与链接约定（跨机器通用）
@@ -26,6 +26,11 @@ python 在 Windows 上把它当"当前盘符根路径" → **凭空造出 `C://c
 垃圾留下了。）**正确做法**：路径直接在 python 里写成 `r"C://Users//<用户名>//..."`，
 或从 `os.path.expanduser` 拿。
 
+**⚠️ 同一个坑不用变量也会踩** —— 在 python 源码里直接写字面量 `"/home/cgw06/xxx"`（想写 WSL 侧文件时很容易这么写），
+Windows python 会把它当成**当前盘根目录下的相对路径** → 静默写到 `C:\home\cgw06\xxx`，还打印"写入成功"。
+（真踩过：给 WSL 写脚本，`open("/home/cgw06/...")` 落到了 `C:\home\...`，得靠 `ls` 回读才发现。）
+给 WSL 侧写文件必须用 UNC：`r"\\wsl.localhost\Ubuntu\home\cgw06\..."`。
+
 **⚠️ 反向：python 的 stdout 给 bash 用时，必须去 `\r`** —— Windows 版 python 输出是 `\r\n`，
 bash 的 `read` / `case` 会把 `\r` 一起吃进去（变量实际是 `OK\r`，匹配不上 `case OK)`，
 表现成"莫名失败 / 查不到结果"）。修法：管道后加 `tr -d '\r'`，或 `v="${v%$'\r'}"`。
@@ -47,6 +52,19 @@ EXE="C:/path/to/program.exe"
 ## junction（目录联接）
 
 - **不需要管理员权限**，实测非管理员可创建，读取透传正常
+- ⚠️ **目标只能是本地卷，不能是 UNC 路径**（`\\wsl.localhost\...`、`\\server\share` 都不行）。
+  坑在于它**不会报错**：`New-Item -ItemType Junction` 返回成功、`Test-Path` 也是 True，
+  但一访问就报「文件名、目录名或卷标语法不正确」。想跨到 UNC 只能用符号链接，
+  而符号链接常规需要管理员/开发者模式；实测非管理员跑 `New-Item -ItemType SymbolicLink`
+  会**静默降级成普通空目录**（不抛异常、`Attributes` 里没有 `ReparsePoint`）。
+  → 结论：**别指望从 Windows 侧链接到 WSL 里的目录**，要打通就反过来 ——
+  真身放本地 NTFS，让 WSL 侧 `ln -s` 指到 `/mnt/<盘>/...`。
+- ⚠️ **反向也不通：WSL 里的符号链接，Windows 侧看不见。** 通过 `\\wsl.localhost\...` 访问时，
+  那个软链在资源管理器里显示成一个 **1KB 的"文件"**，点不进去；实测 `head` 报 `Not a directory`、
+  列目录报 `Input/output error` —— 9P 通道不解析 Linux 软链。
+  **但 WSL 内部完全正常**（Linux 自己解析），`cd`/编辑器/编译都不受影响。
+  → 给用户解释时别慌：这是预期行为，不是搞坏了。要在资源管理器里能点进去，
+  只能改用 `mount --bind`（写进 `/etc/fstab`，会变成真目录），或者干脆直接看真身那份。
 - 建：`New-Item -ItemType Junction -Path <link> -Target <dir>`
 - **删必须用 `[System.IO.Directory]::Delete($link, $false)`** —— `Remove-Item -Recurse` 会连带删掉**源目录内容**
 - Git for Windows 会把 junction 当普通目录，**挂载目录必须写进 `.gitignore`**，否则仓库里会出现重复内容

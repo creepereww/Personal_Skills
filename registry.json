@@ -115,17 +115,6 @@
       "pulled_date": "2026-09-29"
     },
     {
-      "id": "pcb-design-assistant",
-      "source": "skillhub",
-      "namespace": "clawhub_thcjp",
-      "license": "MIT-0",
-      "version": "1.0.0",
-      "cached": true,
-      "mount": true,
-      "note": "SkillHub 社区 skill（发布者 thcjp）。纯文档型：包里只有 SKILL.md + _meta.json + skill-card.md，正文「按需加载表」引用的 references/*.md 与 scripts/bridge-server.mjs 上游均未随包发布 —— 它实际是 prompt 提纲，别当成能跑的桥接实现。与 store/cache/easyeda-api、store/local/local-jlceda-design-review 触发范围大面积重合",
-      "pulled_date": "2026-10-09"
-    },
-    {
       "id": "easyeda-agent-connector",
       "source": "skillhub",
       "namespace": "user_6b95f8df",
