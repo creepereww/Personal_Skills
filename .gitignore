@@ -13,6 +13,10 @@ proposals/
 *.tmp
 *.log
 
+# 提交信息临时文件（Write 写它、git commit -F 读它，用完即删）
+# 曾被 git add -A 误提交过两次，故显式忽略
+.commit-msg.txt
+
 # 字节码缓存
 __pycache__/
 *.pyc
