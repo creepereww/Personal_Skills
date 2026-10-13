@@ -1,7 +1,7 @@
 ---
 name: wgc-work1-px
-description: 公司电脑 WGC-WORK1-PX 的本机环境事实 —— 机型（Lecoo）、HOME 与 %USERPROFILE% 错位（HOME 在 D:\AppData\Roaming\SPB_Data）、git 装在 D:\Git（与 bash 的 PortableGit git 是两套）、装了哪些 agent（WorkBuddy/ZCode/QClaw/Codex/MarsCode/Trae，QClaw 在 D 盘）、磁盘余量、**推送 GitHub 的正确姿势**（github.com 被 Watt Toolkit 劫持到 127.0.0.1，致 TLS 校验失败、push 静默 exit 128，需放宽校验 + 预置认证头；已固化成 scripts/push.ps1）、Everything 在 D:\ 但没装 es.exe。判断"工具在哪、网络通不通、怎么 push"时看这里。通用规则见 local-windows-shell-conventions。
-version: v0.7
+description: 公司电脑 WGC-WORK1-PX 的本机环境事实 —— 机型（Lecoo）、HOME 与 %USERPROFILE% 错位（HOME 在 D:\AppData\Roaming\SPB_Data）、git 装在 D:\Git（与 bash 的 PortableGit git 是两套）、装了哪些 agent（WorkBuddy/ZCode/QClaw/Codex/MarsCode/Trae；**opencode 装在 WSL 里**、Windows 侧探测不到、职责是嵌入式编程）、磁盘余量、**推送 GitHub 的正确姿势**（github.com 被 Watt Toolkit 劫持到 127.0.0.1，致 TLS 校验失败、push 静默 exit 128，需放宽校验 + 预置认证头；已固化成 scripts/push.ps1）、Everything 在 D:\ 但没装 es.exe。判断"工具在哪、网络通不通、怎么 push"时看这里。通用规则见 local-windows-shell-conventions。
+version: v0.8
 ---
 
 # wgc-work1-px（公司电脑）
@@ -50,7 +50,7 @@ version: v0.7
 | WorkBuddy | ✅ | `~/.workbuddy/`（走 `%USERPROFILE%`，在 C 盘） |
 | ZCode | ✅ | `C:/Users/cgw06/.zcode/`（含真实会话数据，走 `%USERPROFILE%`） |
 | QClaw | ✅ | **在 D 盘**：`D:/AppData/Roaming/SPB_Data/.qclaw/`（`memory/lossless/lcm.db`）+ `.openclaw/`（`state/openclaw.sqlite`、`identity/`）。跟 `HOME` 走 |
-| opencode | ❌ | 无安装痕迹、npm 全局目录都不存在 |
+| opencode | ⚠️ **装在 WSL 里**（不是 Windows 原生） | Windows 侧**所有路径都探测不到** —— 所以 `routing.json` 里那三条 detect 永远不命中、`link.ps1` 历来报 `NOTFOUND` 就是这个原因。职责：**嵌入式编程** |
 | 豆包工作 | ❌ | 无安装痕迹（`~/DoubaoWork`、`%LOCALAPPDATA%\DoubaoWork` 均不存在） |
 | Codex CLI | ✅ | `C:/Users/cgw06/.codex/`（`memories_1.sqlite` 等） |
 | MarsCode | ✅ | `C:/Users/cgw06/.marscode/`（预置 `builtin_skills`） |
@@ -80,6 +80,22 @@ version: v0.7
 | `~/.marscode/builtin_skills` | 豆包 IDE 预置 |
 | `~/.trae-cn/builtin/global/skills` | Trae CN 预置 |
 | `D:/.../.qclaw/` | 只见到 `memory/`，**没有 skills 目录** |
+
+**⚠️ opencode：装在 WSL 里，Windows 侧的 junction 挂不到它**
+
+它跑在 WSL 内，`~/.config/opencode/skills/` 落在 **WSL 文件系统**里，不是 `C:\Users\cgw06\...`。
+所以 `routing.json` 给 opencode 配的 Windows 路径（`dir` + 三条 `detect`）**一条都不会命中**，
+`link.ps1` 一直报 `NOTFOUND` 跳过 —— 这是**正常表现，不是故障**。
+
+真要给 WSL 里的 opencode 挂我们的技能，得**在 WSL 内部**建软链（`link.ps1` 的 junction 方案够不着，
+且 junction 不能指向 UNC / WSL 侧软链在 Windows 侧不可见，见 `local-windows-shell-conventions`）：
+
+```bash
+# 在 WSL 里执行（示例，按实际 distro/home 调整）
+ln -s /mnt/c/Users/cgw06/.skills/store ~/.config/opencode/skills
+```
+
+> 未验证上述软链是否被 opencode 认可（它可能只认自己那套发现逻辑）—— 要做的时候先小范围试。
 
 **其他实测**：
 

@@ -1,7 +1,7 @@
 ---
 name: local-windows-shell-conventions
-description: Windows 上跨机器通用的 shell 与链接约定 —— MSYS 程序的 /c/ 路径 vs Windows 原生程序的 C:/ 路径该用哪种、junction 目录联接的正确建删方式（含"不能指向 UNC 路径"这个静默坑）、Git for Windows 把 junction 当普通目录的坑、skill 目录命名正则、各 AI 客户端的 skills 目录、主机名大小写匹配。写 shell 脚本、建软链接、打通 WSL 与 Windows 目录、排查路径报错或 skill 没生效时看这里。机器专属信息（机型、客户端装在哪个盘、网络情况）见 machine 档；WorkBuddy 的 skill/专家机制见 local-memory-map。
-version: v0.6
+description: Windows 上跨机器通用的 shell 与链接约定 —— MSYS 程序的 /c/ 路径 vs Windows 原生程序的 C:/ 路径该用哪种、junction 目录联接的正确建删方式（含"不能指向 UNC 路径"这个静默坑）、Git for Windows 把 junction 当普通目录的坑、skill 目录命名正则、各 AI 客户端的 skills 目录、主机名大小写匹配。写 shell 脚本、建软链接、打通 WSL 与 Windows 目录（含 9P 上放 SQLite 数据库必被回退的坑）、排查路径报错或 skill 没生效时看这里。机器专属信息（机型、客户端装在哪个盘、网络情况）见 machine 档；WorkBuddy 的 skill/专家机制见 local-memory-map。
+version: v0.10
 ---
 
 # Windows Shell 与链接约定（跨机器通用）
@@ -65,11 +65,53 @@ EXE="C:/path/to/program.exe"
   **但 WSL 内部完全正常**（Linux 自己解析），`cd`/编辑器/编译都不受影响。
   → 给用户解释时别慌：这是预期行为，不是搞坏了。要在资源管理器里能点进去，
   只能改用 `mount --bind`（写进 `/etc/fstab`，会变成真目录），或者干脆直接看真身那份。
+- ⚠️ **打通之后，别把 SQLite 数据库留在 `/mnt/<盘>` 上。** 9P 给不了 WAL 模式要的共享内存，
+  工具通常会**自己绕开**：实测 VS Code C/C++ 扩展（cpptools 1.34）检测到工程 `.vscode/` 落在 9P 上，
+  就把 `browse.VC.db` 自动挪到 `~/.cache/vscode-cpptools/<hash>/`（ext4），并提示
+  "no compatible database location"。**与其让它回退，不如显式指定**：在 `c_cpp_properties.json` 里把
+  `browse.databaseFilename` 写成 ext4 绝对路径（如 `/home/<用户>/.cache/vscode-cpptools/<项目>-browse.db`）——
+  改完**即时生效并重建索引，不用重开 VS Code**；反之若指向 `/mnt/...`，Windows 侧看到的
+  `${workspaceFolder}` 经软链落到 9P，就是被回退的那种情况。
+- ⚠️ **从 Windows 侧对 WSL 文件做写/删操作不可靠，能回 WSL 做就回 WSL 做。** 实测：
+  - **删不掉**：`rm`、Python `os.remove()` 都会走 WorkBuddy 的 safe-delete，而它在 UNC 上
+    **进不了回收站 → fail-closed 直接拒绝删除**（报 `trash-failed` / `windows error -2147024894`）。
+    唯一测通的是 PowerShell 的 `[System.IO.File]::Delete($path)`。
+  - **元数据会假阴性**：同一时刻 bash `ls` 看得见，Python 的 `os.path.isdir/listdir` 却返回 `False`；
+    `open(p,"w")` 甚至**报 `FileNotFoundError` 但文件其实已经建出来了**。
+    遇到这种"说找不到、其实在"的情况，换正斜杠 `//wsl.localhost/...` 重试，
+    别当成路径写错去排查。
+  → 给 WSL 写文件用 UNC 就行；但**删除、改权限这类操作一律让用户在 WSL 终端里做**。
+- ⚠️ **`~/bin/wsl2win` 和 `links.conf` 别在 Windows 侧用编辑器改**：可能存成 CRLF
+  （shebang 失效）或丢执行位。改完回 WSL 里 `bash -n` 验语法、`chmod +x` 补权限。
+- ⚠️ **9P 显示的权限位是假的，且 Windows 侧复制进 ext4 会丢执行位**（实测 2026-10-13）：
+  `.NET Copy` 经 `\\wsl.localhost` 写进 WSL 的文件，Windows 侧 `ls` 照样显示 `rwxr-xr-x`，
+  WSL 里真实是 644，一执行就 `Permission denied`；python `os.stat` 经 9P 则一律报 0666。
+  **两个视图都不可信**。凡是 Windows 侧复制/新建到 ext4 的可执行文件，最后必须在 WSL 里
+  `chmod +x`（`mv`/`cat >` 保 inode 不受此影响）
 - 建：`New-Item -ItemType Junction -Path <link> -Target <dir>`
 - **删必须用 `[System.IO.Directory]::Delete($link, $false)`** —— `Remove-Item -Recurse` 会连带删掉**源目录内容**
 - Git for Windows 会把 junction 当普通目录，**挂载目录必须写进 `.gitignore`**，否则仓库里会出现重复内容
 - 判断是不是联接：`($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0`
 - PowerShell 7 有 `.LinkTarget` / `.LinkType` 可读目标；PowerShell 5.1 没有，得用 `cmd /c dir /AL`
+
+## 可用脚本：打通 WSL 与 Windows 目录
+
+`~/bin/wsl2win` —— 把 WSL 里的项目目录换成指向 Windows 真身的软链（即上面那个"反向方案"）。
+
+- **在 WSL 里跑**，不能在 PowerShell/CMD 里跑（它要 `ln -s` 和 `/mnt/<盘>`）
+- 用法看 `wsl2win --help`，别把参数表抄到这儿
+- 配置表查找顺序：`$WSL2WIN_CONF` → **脚本同目录的 links.conf**（现用，用户嫌
+  `~/.local` 多隔一层，全部集中在 `~/bin/`；Ubuntu 默认 `.profile` 里 `~/bin` 和
+  `~/.local/bin` 都进 PATH 且 `~/bin` 优先）→ `~/.config/wsl2win/links.conf`（仅兼容保留）
+- 换新项目就是加一行配置，不用重写脚本
+- 改过脚本要自验：`wsl2win --selftest`（临时目录里跑建链/幂等/写穿透）
+- ⚠️ **脚本本身必须保持 LF**。用 Windows 侧编辑器改会存成 CRLF，
+  shebang 直接失效（`bad interpreter: /usr/bin/env bash^M`）。
+  配置表沾上 CRLF 反倒没事 —— awk 的 `[[:space:]]` 会把行尾 `\r` 一起吃掉（实测）
+- ⚠️ **别信 `ln -s` 的退出码**：MSYS 这类环境会静默降级成复制/空目录却返回 0。
+  脚本已加防线：建完读回来断言 `-L` + `readlink` 一致，不对就**回滚改名**
+- 为什么值得封成脚本而不是一行命令：**先 mv 备份再建链、失败要能回滚、建完要验证** ——
+  这三步手工做很容易漏掉中间那步
 
 ## skill 目录命名
 

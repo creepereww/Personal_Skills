@@ -28,8 +28,8 @@
     },
     "eda": {
       "label": "硬件 / EDA 设计",
-      "why": "立创EDA/EasyEDA 领域；两个技能触发范围高度重合，只给做硬件设计的 agent（取数走 connector，审查走 design-review）",
-      "skills": ["local-jlceda-design-review", "easyeda-agent-connector"]
+      "why": "立创EDA/EasyEDA 领域；取数走 connector、审查走 design-review、按硬件连接生成 MCU IO 代码走 codegen；只给做硬件设计的 agent",
+      "skills": ["local-jlceda-design-review", "easyeda-agent-connector", "local-sinocmcu-8bit-codegen"]
     },
     "file-ops": {
       "label": "文件整理",
@@ -88,7 +88,7 @@
       "detect": ["%USERPROFILE%\\.config\\opencode", "%APPDATA%\\npm\\node_modules\\opencode-ai", "%USERPROFILE%\\AppData\\Local\\Programs\\opencode"],
       "detect_any": true,
       "_detect_note": "skills 目录原生不存在（父目录判据会误判），故显式给出配置目录/npm 包/winget 三种安装位置",
-      "note": "npm 全局 CLI；目录原本不存在，确认装了之后首次 link 会自动创建"
+      "note": "★ 本机实际装在 WSL 里（不是 Windows 原生），职责是嵌入式编程 → 下面这些 Windows 路径一条都不会命中，link.ps1 历来报 NOTFOUND 是正常表现、不是故障。要给 WSL 里的 opencode 挂技能，得在 WSL 内部 ln -s（Windows 侧 junction 够不着），详见 store/machine/wgc-work1-px。单文件可执行程序、内置 skill 编译在里面不可编辑；自建 skill 另认项目 .opencode/skills/、兼容位 .claude/skills/ + .agents/skills/、opencode.json(c) 的 skills 数组指定任意路径 —— 详见 local-memory-map 表①"
     },
     "doubao": {
       "dir": "%USERPROFILE%\\DoubaoWork\\skills",

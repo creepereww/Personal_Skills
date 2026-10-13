@@ -1,7 +1,7 @@
 ---
 name: local-memory-map
-description: 各 agent 的记忆、技能、专家、偏好分别存在哪、能不能统一同步。含通用查法（先分类再定位）、WorkBuddy 的三级记忆与技能/专家三层存储（plugins 各子目录职责、实际加载源看 .skill-list-cache.json）、不能用 junction 统一记忆的四条原因、偏好靠 preferences.md 分发的三条通道，以及按官方文档整理的六类资产（自建技能·用户偏好·内置索引·自建专家·云端记忆·项目记忆）默认目录，覆盖 Claude Code/Codex/Gemini CLI/ZCode/Qoder/Cursor/Windsurf/Trae/OpenClaw/QClaw/豆包/WorkBuddy，含跨工具公共位 ~/.agents/skills 与各家优先级。触发：记忆在哪、记忆存哪、个性化设置存哪、跨 agent 读记忆、同步记忆、用户偏好放哪、项目记忆怎么找、专家文件在哪、内置技能在哪、skills 默认目录、各 agent 资产位置、Gemini CLI 有没有 skills。机器专属实测见 store/machine/<主机名>/。
-version: v0.13
+description: 各 agent 的记忆、技能、专家、偏好分别存在哪、能不能统一同步。含通用查法（先分类再定位）、WorkBuddy 的三级记忆与技能/专家三层存储（plugins 各子目录职责、实际加载源看 .skill-list-cache.json）、不能用 junction 统一记忆的四条原因、偏好靠 preferences.md 分发的三条通道、Skill 与 Subagent 的区别，以及六类资产（技能/偏好/内置索引/专家/云端记忆/项目记忆）的默认目录，覆盖 Claude Code/Codex/Gemini/ZCode/Qoder/Cursor/Windsurf/Trae/OpenClaw/QClaw/opencode/豆包/WorkBuddy，含跨工具公共位 ~/.agents/skills 与各家优先级。触发：记忆在哪、个性化设置存哪、跨 agent 读记忆、同步记忆、用户偏好放哪、项目记忆怎么找、专家文件在哪、内置技能在哪、skills 默认目录、各 agent 资产位置、skill 与 subagent 区别。机器专属实测见 store/machine/<主机名>/。
+version: v0.15
 ---
 
 # 记忆与各类资产的存放地图
@@ -63,6 +63,11 @@ skill 已经统一（`~/.skills` + junction，见 `local-skills-hub`），**记�
 
 **ZCode 的 CLI 是 Claude Code 系**（认 `claude-plugins-official` 市场、用 `~/.zcode/cli/plugins/`
 的市场-缓存-已装三层结构），和 WorkBuddy 的插件机制形似但**不通用**。
+
+**opencode 查法**：全局位是 `~/.config/opencode/skills/`（不是 `~/.opencode/`，跟别家不同），
+另外三个位置在表①（项目 `.opencode/skills/`、兼容位 `.claude/` + `.agents/`、
+以及 `opencode.json(c)` 的 `skills` 数组指定任意路径）。它**内置 skill 编译在单文件里**，
+目录里看到的只可能是自己写的。
 
 ## WorkBuddy 的三种「记忆」别混
 
@@ -301,6 +306,29 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 | **云端记忆 / 个性化设置** | ❌ | 走账号云端同步，本地无明文，不归我们管 |
 | **项目记忆**（`<工作区>/.workbuddy/memory/`） | ❌ | 每个工作区一份，跟着项目走，不集中同步 |
 
+## Skill 与 Subagent 别混（★ 概念最容易搞错）
+
+名字像、作用完全不同。搞混的典型后果：**该加载参考资料的没加载、该派出去的活却塞进了主对话**，
+把上下文白白撑爆。
+
+| | **Skill** | **Subagent** |
+|---|---|---|
+| 本质 | **知识 / 流程说明书**（静态参考资料） | **独立执行体**（另一个 agent） |
+| 调用方式 | skill 工具**按 ID 加载** | subagent 工具**派活** |
+| 对主上下文的影响 | 正文（**去掉 frontmatter**）被加进**当前对话**，从此留在上下文里 | 干完只把**结论**返回；**中间过程不占主上下文**，用完丢弃 |
+| 有自己的上下文窗口吗 | ❌ 没有，就是主对话里的一段文本 | ✅ 有，独立窗口 |
+| 一句话 | **"教我怎么做"** | **"派人去查 / 去办"** |
+
+**典型 Subagent 画像**（opencode 内置两个；别家多同构，只是名字不同）：
+
+| 名字 | 定位 | 特点 |
+|---|---|---|
+| `@explore` | 专精**代码库快速检索** | 按文件名模式找文件、按关键字搜代码、回答架构类问题。**只读** |
+| `@general` | **通用型** | 适合复杂研究、需要多步执行的任务，**可以后台跑** |
+
+> - Skill 与 Subagent **都可以后台并行**（都是派发式，不必占着主对话干等）。
+> - **判断口诀：要"知道怎么做" → Skill；要"有人去查/去办" → Subagent。**
+
 ## 各 agent 的默认资产位置（★ 官方文档口径）
 
 > 下面这张表**按各家官方文档的默认路径**整理 —— 所以**没装的 agent 也能查**，
@@ -319,6 +347,13 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 >   **官方从未公开本地目录规范**。原因见下：它的技能是**客户端内管理的资产**（面板添加/新建/上传），
 >   不是"本地目录协议"。所以本地 `.user_skills` 之类只是**客户端展开的缓存**，一律归 machine 档，
 >   **别把本机实测路径当官方约定**。找了两轮没有 docs 站，这就是结论，别再重复搜。
+> - ⚠️ **OpenCode**：**没找到官方 skills 文档**（`opencode.ai` 只有 CLI 通用文档）。下面口径全部来自
+>   **实操验证**（含用户提供的本机实况），**别按文档权威引用**。四条关键事实：
+>   **① 单文件可执行程序**，内置 skill 编译在里面、**没有可编辑路径**（要改只能改源码重新打包）；
+>   **② 自建 skill 有四个位置** —— 全局 `~/.config/opencode/skills/`、项目 `.opencode/skills/`、
+>   兼容位 `.claude/skills/` + `.agents/skills/`、以及 `opencode.json(c)` 的 `skills` 数组指定任意路径；
+>   **③ 有 Subagent 机制**（`@explore` 只读检索、`@general` 通用可后台），**与 Skill 是两回事**，见专节；
+>   **④ 历史会话存 `~/.local/share/opencode/opencode.db`**（SQLite，不可直读）。
 
 ### ① 自建技能（user-level skills）
 
@@ -333,6 +368,7 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 | **Windsurf** | 有 Skills 机制；路径见第三方整理 `.windsurf/skills/`、全局 `~/.codeium/windsurf/skills/`，亦认 `.agents/skills/` | 官方文档已把 Skills 列为一类定制机制，但**未给出路径** ✅（机制）/ ⚠️（路径） |
 | **Trae** | **全局** `~/.trae/skills/`（Windows = `%userprofile%/.trae/skills`）；**项目级** `.trae/skills/` | ✅ 官方（`docs.trae.ai/ide/skills`）；SKILL.md 同开放标准（frontmatter name/description + 正文）；创建方式：对话生成 / 设置面板手动建 / 导入 zip；**旧记「企业版手动解压到 .skills、社区版无 Skills」已被官方推翻** |
 | **OpenClaw / QClaw** | 共享/managed：`~/.openclaw/skills/`；**工作区 `~/.openclaw/workspace/skills/`（同名冲突时优先级最高）** | ✅ 官方文档；QClaw 实例用 `~/.qclaw/` 前缀（跟 `$HOME` 走）；另可走 `skills.load.extraDirs` 配置 |
+| **OpenCode** | **全局** `~/.config/opencode/skills/`；**项目** `<项目根>/.opencode/skills/`；**项目兼容位** `<项目根>/.claude/skills/`、`<项目根>/.agents/skills/`；**任意目录** —— 在 `opencode.json(c)` 的 `skills` 数组里指定路径 | ⚠️ **实操验证，非官方文档口径**（见上方核对范围）。四个位置都能挂；注意它的全局位是 `~/.config/opencode/` 而非 `~/.opencode/`，跟别家不一样。两个项目兼容位正是跨工具公共约定，与 Claude Code / Codex CLI 通用。「任意目录」适合"技能不在项目内、又不想挂进全局目录"的场景。**装在 WSL 里时，`~/.config/opencode` 落在 WSL 文件系统内** —— Windows 侧的 junction 够不着，得在 **WSL 内部** `ln -s`。**内置 skill 编译在单文件里、改不了**，见表③ |
 | **WorkBuddy** | `~/.workbuddy/skills/`（自建）；插件技能从 `plugins/marketplaces/...` 加载 | 权威清单看 `.skill-list-cache.json` |
 | **豆包 / 豆包工作** | **无公开路径规范** —— 技能在客户端「技能 · 连接器」面板里添加/新建/管理（对话新建 / 上传技能包 / 新建自定义连接器） | ✅ 官方（飞书帮助中心 + 官网 `doubao.com/work`）；技能包**含 `SKILL.md`**（YAML frontmatter: `name`/`description`，可带 `references/`）⚠️（多篇第三方描述一致，官方未出规范）；**本地目录是客户端展开的缓存、非官方约定** → 见 machine 档 |
 
@@ -361,6 +397,7 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 | **Trae** | 官方内置 3 个：`TRAE-generate-mini-app`（Taro 多端小程序）、`TRAE-debugger`（起调试服务器收证据）、`TRAE-code-review`（审查 MR/diff） | ✅ 官方能力清单；**目录路径官方未给出**（旧记 `~/.trae-cn/builtin/global/skills` 属本机实测，见 machine 档） |
 | **MarsCode（豆包 IDE，已并入 Trae）** | `~/.marscode/builtin_skills` | 预置 |
 | **WorkBuddy** | **索引** `~/.workbuddy/app/cache/experts/manifest.json`；技能源 `plugins/marketplaces/workbuddy-builtin/skills/`；已装副本 `plugins/cache/workbuddy-builtin/<plugin>/<ver>/` | 448 专家实体在**远端 CDN**，本地仅索引 |
+| **OpenCode** | **没有目录** —— 内置 skill 编译进**单文件可执行程序**里 | ⚠️ 实操验证。要改内置 skill 只能**改 OpenCode 源码重新打包**，不现实 → **正确做法是自己写 skill**，放表①那四个位置（全局 / 项目 / 项目兼容位 / `opencode.json` 指定），别惦记改内置的 |
 
 > ⚠️ 这一类都是**客户端自动拉取/重装即回**的缓存，**不该进 Git 同步**。
 
@@ -373,6 +410,7 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 | **Codex CLI** | `~/.codex/` 里 `[agents]`（config.toml）；插件 marketplace 由 cloud/system config 定 | subagent |
 | **Qoder** | 官方口径：Subagent / 自定义 Agent **由插件（Plugins）提供** —— IDE 走 `Extensions → Plugins` 安装、任务里输 `/` 选用；CLI 用 `options.agents` 定义（也可 `--agents` / `/agents` 面板创建） | ⚠️ 第三方整理说用户级 `~/.qoder/agents/<name>.md`、项目级 `.qoder/agents/`，但**官方文档未给出该目录路径**（本机也无 `agents/` 目录，见 machine 档）—— 别照抄 |
 | **其他 agent** | **无「专家」概念** | 只有 skills + rules/AGENTS.md —— 这是专家不能跨 agent 的根因 |
+| **OpenCode** | **Subagent**（概念最接近"专家"的那个插槽）：内置 `@explore`（代码库检索，只读）、`@general`（通用，可后台） | ⚠️ 实操验证。与 Skill 是**两回事**，见「Skill 与 Subagent 别混」专节 |
 
 ### ⑤ 云端记忆 / 个性化
 
@@ -403,6 +441,7 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 | **OpenClaw / QClaw** | 会话 `~/.openclaw/agents/<agent>/sessions/`；记忆在工作区 `memory/` | jsonl + md ✅ |
 | **WorkBuddy** | `<工作区>/.workbuddy/memory/YYYY-MM-DD.md`（**每个工作区一份**） | Markdown 按天追加 |
 | **Qoder** | 项目级 `.qoder/skills/`、`AGENTS.md`、`AGENTS.local.md`、`.qoder/rules/`；自动记忆 `~/.qoder/projects/<project>/memory/`（含 `MEMORY.md` 索引 + 主题文件） | Markdown ✅ |
+| **OpenCode** | 历史会话 `~/.local/share/opencode/opencode.db`（**SQLite**） | ⚠️ 实操验证；不可直读，走客户端自身检索 |
 
 **一句话规律**：①-④ 是"可搬的资产"（技能/规则/专家/内置缓存），⑥ 是"跟项目走的记录"，
 ⑤ 是"账号级的隐性状态"。**能跨机器同步的只有 ①② 的自建部分**，其余要么走云端、要么跟项目、要么重装即回。
