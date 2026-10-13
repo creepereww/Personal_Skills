@@ -1,6 +1,6 @@
 ---
 name: wgc-work1-px
-description: 公司电脑 WGC-WORK1-PX 的本机环境事实 —— 机型（Lecoo）、HOME 与 %USERPROFILE% 错位（HOME 在 D:\AppData\Roaming\SPB_Data）、git 装在 D:\Git（与 bash 的 PortableGit git 是两套）、装了哪些 agent（WorkBuddy/ZCode/QClaw/Codex/MarsCode/Trae；**opencode 装在 WSL 里**、Windows 侧探测不到、职责是嵌入式编程）、磁盘余量、**推送 GitHub 的正确姿势**（github.com 被 Watt Toolkit 劫持到 127.0.0.1，致 TLS 校验失败、push 静默 exit 128，需放宽校验 + 预置认证头；已固化成 scripts/push.ps1）、Everything 在 D:\ 但没装 es.exe。判断"工具在哪、网络通不通、怎么 push"时看这里。通用规则见 local-windows-shell-conventions。
+description: 公司电脑 WGC-WORK1-PX 的本机环境事实 —— 机型（Lecoo）、HOME 与 %USERPROFILE% 错位（HOME 在 D:\AppData\Roaming\SPB_Data）、git 装在 D:\Git（与 bash 的 PortableGit git 是两套）、装了哪些 agent（WorkBuddy/ZCode/QClaw/Codex/MarsCode/Trae；**opencode 装在 WSL 里**、Windows 侧探测不到、职责是嵌入式编程，其实例的 Skill/Subagent 分工与条目清单见专节）、磁盘余量、**推送 GitHub 的正确姿势**（github.com 被 Watt Toolkit 劫持到 127.0.0.1，致 TLS 校验失败、push 静默 exit 128，需放宽校验 + 预置认证头；已固化成 scripts/push.ps1）、Everything 在 D:\ 但没装 es.exe。判断"工具在哪、网络通不通、怎么 push"时看这里。通用规则见 local-windows-shell-conventions。
 version: v0.8
 ---
 
@@ -96,6 +96,33 @@ ln -s /mnt/c/Users/cgw06/.skills/store ~/.config/opencode/skills
 ```
 
 > 未验证上述软链是否被 opencode 认可（它可能只认自己那套发现逻辑）—— 要做的时候先小范围试。
+
+### WSL 里这个 opencode 实例的实况（Skill / Subagent 分工）
+
+**职责**：嵌入式编程相关。它这个实例里两类东西长得像但不是一回事，搞混的后果是
+"该加载参考资料的没加载、该派出去的活却塞进主对话"把上下文撑爆：
+
+| | **Skill** | **Subagent** |
+|---|---|---|
+| 本质 | 知识 / 流程说明书（静态参考资料） | 独立执行体（另一个 agent） |
+| 调用 | skill 工具**按 ID 加载** | subagent 工具**派活** |
+| 对主上下文 | 正文（去掉 frontmatter）加进**当前对话**，从此留着 | 只把**结论**返回；中间过程不占主上下文、用完丢弃 |
+| 独立上下文窗口 | ❌ | ✅ |
+| 一句话 | **"教我怎么做"** | **"派人去查 / 去办"** |
+
+**实例里现存的条目**：
+
+| 条目 | 类型 | 说明 |
+|---|---|---|
+| `@opencode` | 📁 Skill（文件夹） | 把说明书内容加载进主 agent 上下文 |
+| `@report` | 📁 Skill（文件夹） | 同上 |
+| `@explore` | 🧠 Subagent | 专精代码库快速检索：按文件名模式找文件、按关键字搜代码、答架构类问题。**只读** |
+| `@general` | 🧠 Subagent | 通用型，适合复杂研究、多步执行任务，**可后台跑** |
+
+> - 两者**都可以后台并行**（派发式，不必占着主对话干等）。
+> - **口诀：要"知道怎么做" → Skill；要"有人去查/去办" → Subagent。**
+> - **历史会话库**：`~/.local/share/opencode/opencode.db`（SQLite，**不可直读**，走客户端自身检索）。
+>   这是 opencode 专属路径，位置口径已同步进 `local-memory-map` 表⑥。
 
 **其他实测**：
 
