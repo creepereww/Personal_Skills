@@ -12,6 +12,20 @@ version: v0.6
 
 ## 范围与边界
 
+> **⛔ 交付物白名单（唯一允许生成的文件内容）**
+>
+> **A 类（IO 层）**：`INIT_GPIO()`、输入/输出宏、LED 查理复用线宏、`SMOKE_PWM_*`
+> **B 类（屏幕驱动，仅当拿到屏图纸）**：`DisplayScanService()` + 变量↔符号集注释 + 符号/应用层宏
+> **辅助**：中间产物（`pins.csv`、`pins_prefill.csv`、判定脚本、`io_layer.c`）
+>
+> **以上之外的一切，一律不生成。** 包括但不限于：驱动层 `.c/.h`、状态机、
+> 采样调度器、定时器/ADC 服务函数、功率/温度/保护算法、阈值表、
+> 中断服务程序、业务逻辑、`firmware_template.c` / `main.c` / `app.c` 之类。
+>
+> 用户说「生成软件模板」「出模板」「生成代码」时，**语义就是上面 A 类 + B 类**，
+> 不是让你写一份完整的固件骨架。用户的模板会由用户自己给，照模板改即可。
+> 讨论中提到的算法、阈值、状态机想法，若用户没明确要，就**只在回复里讲清楚，不落文件**。
+
 **输入有两份**：
 
 1. **嘉立创 EDA 网表**（连通性真值）—— 出 IO 层代码。
@@ -62,6 +76,7 @@ version: v0.6
 **两条硬口径（用户定的，别改）**：
 
 - **未用到的 IO 一律 output**，初值低电平。（`PCK/PDT` 也一样：烧录时由**烧录选项**自动切方向，代码里不体现、也不必定义宏。）
+  - ⚠️ **例外**：`PCK/PDT` 若被**复用成别的功能**（例如本板就把 CC 脚兼作彩灯阴极），则**按实际功能命名出宏**，不要套用"烧录脚不写宏"这条 —— 固件确实要驱动它们。初值仍取 0，让 CC 上电对外呈现 Rd。
 - **输入脚**的 `IOP` 位写 0。
 
 **LED 线只进屏幕段**：`role=led` 的脚不另出 `PIN_LED_LINE*`／`PIN_LEDn` 输出宏，避免和屏幕段指向同一批脚造成两套宏。
@@ -100,6 +115,46 @@ version: v0.6
 - `SMOKE_PWM_T*` 由 **role=pwm 的脚**的复用名决定（不是"引脚名里有 PWM 就置 1"—— 同脚常兼 LED 线）。
 
 ## 模板
+
+### 宏命名规范（用户定的，**不要自创宏名**）
+
+`pins.csv` 的 `irq_macro` 填的是**中断宏主干**，`func` 填的是 `PIN_xxx` 的主干。按下表选，别自己起名：
+
+| 用途 | `irq_macro` 主干 | 生成的宏 | 注释口径 |
+|---|---|---|---|
+| 咪头（MIC） | `MI_INTERRUPT` | `MI_INTERRUPT_ENABLE/DISABLE` | 中断使能/禁用 |
+| USB 插线检测 | `USB_INTERRUPT` | `USB_INTERRUPT_ENABLE/DISABLE` | |
+| 加热器在线检测（烟弹） | `HEAT1_ONLINE`（多路用 HEAT2/HEAT3） | `HEAT1_ONLINE_ENABLE/DISABLE` | |
+| 按键 | `KEY_CHANGE` | `KEY_CHANGE_ENABLE/DISABLE` | **DISABLE 写在 ENABLE 前面**（用户原版式） |
+
+用户给的原始模板（照抄，勿改顺序/注释）：
+
+```c
+// #define MI_INTERRUPT_ENABLE P16KE = 1     // 中断使能
+// // #define MI_INTERRUPT_DISABLE P16KE = 0     // 中断禁用
+// #define USB_INTERRUPT_ENABLE P14KE = 1
+// #define USB_INTERRUPT_DISABLE P14KE = 0
+// #define HEAT1_ONLINE_ENABLE P06KE = 1
+// #define HEAT1_ONLINE_DISABLE P06KE = 0
+// // #define HEAT2_ONLINE_ENABLE             P14KE = 1
+// // #define HEAT2_ONLINE_DISABLE            P14KE = 0
+// // #define HEAT3_ONLINE_ENABLE             P23KE = 1
+// // #define HEAT3_ONLINE_DISABLE            P23KE = 0
+// #define KEY_CHANGE_DISABLE P16KE = 0
+// #define KEY_CHANGE_ENABLE P16KE = 1
+```
+
+**加热使能宏固定三个都用**，没用到的填盲变量 `dummy_pin`（用户原话「未用到的话使用盲变量」）：
+
+```c
+#define PIN_HEAT1_CTL P01D      //   PWM3A
+#define PIN_HEAT2_CTL dummy_pin // 未用到的话使用盲变量
+#define PIN_HEAT3_CTL dummy_pin // 未用到的话使用盲变量
+```
+
+⇒ `role=pwm` 的脚有几个就填几个 `PIN_HEATn_CTL`（按行序 HEAT1/2/3），**其余补 `dummy_pin` 占位**。
+
+### 交付文件
 
 `templates/` 存用户给的版式，`gpio_gen.py` 用 `{{占位符}}` 填空。改版式**只改模板**，别去改脚本里的字符串。
 
@@ -191,3 +246,18 @@ version: v0.6
    图纸上的注释（SEG 号等）若与系统性口径冲突，以**图上的段名 + 线对**为准。
 7. **写 `.c` 要固定 LF**：`Path.write_text()` 在 Windows 默认转 CRLF，跟工程里的 LF 文件 `diff` 会全篇假差异。用 `newline="\n"`。
 8. 审查/改设计属于"大改"，先说明改哪个文件、删什么、加什么，等确认再动手；**生成只读的代码文件不算改设计**。
+9. **别把"生成软件模板"理解成"写一份固件骨架"**（2026-10-16 踩过）——
+   曾擅自生成 `firmware_template.c`（状态机 + ADC 调度 + 阈值表 + 中断服务），被用户打回。
+   **交付物只有 IO 层（A）+ 屏幕驱动（B）**；算法与状态机的想法只在回复里讲，不落文件。
+   判据：文件里出现状态机、`main()`、中断服务、协议/算法代码 ⇒ 越界了。
+10. **不要凭"通用经验"推翻预填的判定**（2026-10-16 踩过）——
+    把 `KEY_MI` 的 `irq=yes` 改成 `no`，理由是"三线咪是模拟量、该用 ADC 包络"，
+    但用户的**三线咪输出就是数字信号**，该用键盘中断 —— 我的假设是错的。
+    - 预填值是**默认值**，第 2 步的改动要逐条列出「预填 → 改成 → 依据」让用户过目；
+    - 对**器件实际规格的判断**（数字/模拟、输出类型、极性）没把握时，**别改**，标 `待确认` 去问；
+    - 同理，"比较器/ADC 做快保护""包络检测"这类架构想法属于**回复内容**，不是 `pins.csv` 判定依据。
+    - **`func` 也别按网名自己起**（2026-10-21 又踩一次）：网名 `CHG_VCC` 对应的模板名是 `USB_IN`（出 `PIN_USB_IN`），
+      预填表里本来就写着 `CHG_VCC / VBUS / USB → USB_IN`，我却改成了 `CHG_VCC`。**模板给的 `func` 一律照用。**
+11. **端口中断（`PxyKE`）是键盘中断 KBI，触发的是电平变化**：
+    - 开关型信号（按键、插拔检测）⇒ `irq=yes` 正确；
+    - **斩波型信号**（被 PWM 切变的采样点）⇒ 加热期间必须关掉 KBI，否则边沿风暴；

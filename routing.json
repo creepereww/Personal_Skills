@@ -28,8 +28,8 @@
     },
     "eda": {
       "label": "硬件 / EDA 设计",
-      "why": "立创EDA/EasyEDA 领域；取数走 connector、审查走 design-review、按硬件连接生成 MCU IO 代码走 codegen；只给做硬件设计的 agent",
-      "skills": ["local-jlceda-design-review", "easyeda-agent-connector", "local-sinocmcu-8bit-codegen"]
+      "why": "立创EDA/EasyEDA 领域；取数走 connector、审查走 design-review、按硬件连接生成 MCU IO 代码走 codegen、元器件采购加购走 bom-purchase；只给做硬件设计的 agent",
+      "skills": ["local-jlceda-design-review", "easyeda-agent-connector", "local-sinocmcu-8bit-codegen", "local-lcsc-bom-purchase"]
     },
     "file-ops": {
       "label": "文件整理",
@@ -51,10 +51,20 @@
       "why": "网盘/MCP 一次性接入流程，接完即低频",
       "skills": ["local-cloud-drive-mcp-onboarding"]
     },
+    "quicker": {
+      "label": "Quicker 动作开发",
+      "why": "制作 Quicker 动作（组合动作 JSON / Roslyn 脚本）；都要本机 Quicker + 一个中转动作才跑得通，只有真在写 Quicker 动作的 agent 用得上",
+      "skills": ["qk-action-creator", "quicker-skill"]
+    },
     "wb-only": {
       "label": "WorkBuddy 专属",
       "why": "内容全是 WorkBuddy 宿主特有的（工具层输出、安全策略、shim 补丁、沙箱代理），其他 agent 读到是噪音甚至误导",
       "skills": ["local-workbuddy-quirks"]
+    },
+    "reverse": {
+      "label": "逆向工程",
+      "why": "分析二进制/打包产物（原生程序、.NET、Electron/JS、固件、浏览器扩展、APK）的方法论与工具链。只对需要拆成品的 agent 有意义；写代码、整理文件、查资料这类 agent 挂上纯属噪音。自带强制合规前置校验",
+      "skills": ["reverse-engineer-anything"]
     }
   },
 

@@ -32,8 +32,10 @@ except Exception:
 
 PORT_RE = re.compile(r"^P([0-2])([0-7])$")
 PWM_RE = re.compile(r"PWM(3A|3B|3C|1|2)")
-IRQ_DEF_RE = re.compile(r"#define\s+(\w+)_INTERRUPT_(ENABLE|DISABLE)\b")
-IRQ_CALL_RE = re.compile(r"^\s*(\w+_INTERRUPT_(?:ENABLE|DISABLE))\s*;")
+# 用户模板里有两种命名：`<stem>_INTERRUPT_ENABLE`（旧）与 `<stem>_ENABLE`（如 KEY_CHANGE_ENABLE）。
+# 两种都要认，否则 --check 会漏检，宏名不一致就抓不到了。
+IRQ_DEF_RE = re.compile(r"#define\s+(\w+?_(?:INTERRUPT_)?(?:ENABLE|DISABLE))\b")
+IRQ_CALL_RE = re.compile(r"^\s*(\w+?_(?:INTERRUPT_)?(?:ENABLE|DISABLE))\s*;")
 
 PWM_KEYS = ["T1", "T2", "T3A", "T3B", "T3C"]
 REGS = ["0", "1", "2"]
@@ -166,14 +168,20 @@ def render_io_macros(rows, tpl):
         """先出全部 PIN_ 宏，再出全部中断宏（照模板版式）。
 
         accepted 是 role 集合：输出段同时收 'out' 与 'pwm'（加热脚的角色是 pwm）。
+        加热使能宏固定出满 HEAT1/HEAT2/HEAT3 三个，没用到的填盲变量 dummy_pin。
         """
         pins, irqs = [], []
+        heat_used = 0
+        last_pwm = -1
         for row in rows:
             rs = roles_of(row)
             if not (rs & accepted):
                 continue
             text = "#define PIN_%s %sD" % (row["func"], row["port"])
             pins.append(text.ljust(pad) + "// " + comment(row))
+            if "pwm" in rs:
+                heat_used += 1
+                last_pwm = len(pins) - 1
             if "in" in accepted and row["irq"].lower() == "yes":
                 stem = irq_stem(row)
                 e = "#define %s_ENABLE" % stem
@@ -181,6 +189,16 @@ def render_io_macros(rows, tpl):
                 w = max(len(e), len(d)) + 1
                 irqs.append(e.ljust(w) + "%sKE = 1" % row["port"])
                 irqs.append(d.ljust(w) + "%sKE = 0" % row["port"])
+
+        # 加热使能：HEAT1..HEAT3 三个都写上，缺的填 dummy_pin（用户口径）
+        # 紧跟在最后一个 pwm 宏后面，不跟到段末
+        if "pwm" in accepted and heat_used and heat_used < 3:
+            at = last_pwm + 1
+            for n in range(heat_used + 1, 4):
+                text = "#define PIN_HEAT%d_CTL dummy_pin" % n
+                pins.insert(at, text.ljust(pad) + "// 未用到的话使用盲变量")
+                at += 1
+
         return "\n".join(pins + irqs)
 
     return render(tpl, {"IN_MACROS": block({"in"}, width({"in"})),
@@ -238,7 +256,7 @@ def check_file(path):
     text = Path(path).read_text(encoding="utf-8", errors="replace")
     defined = set()
     for m in IRQ_DEF_RE.finditer(text):
-        defined.add("%s_INTERRUPT_%s" % (m.group(1), m.group(2)))
+        defined.add(m.group(1))
     called = set()
     for line in text.splitlines():
         m = IRQ_CALL_RE.match(line)
