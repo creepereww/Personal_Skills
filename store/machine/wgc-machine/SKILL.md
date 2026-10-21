@@ -1,7 +1,7 @@
 ---
 name: wgc-machine
 description: 家里那台电脑（主机名 WGC_MACHINE，机型 MECHREVO KUANGSHI）的本机环境事实 —— 四个客户端装在 D:\APP_MAGIC、HOME 无错位（= USERPROFILE）、已装 ZCode/opencode/豆包工作/QClaw/Codex/Trae/Qoder 各自在哪、git 用 D:\APP_CLOUD 自装的 2.49、直连 github.com:443 超时需走 SSH 或代理、系统代理 127.0.0.1:26561、Everything 在 图吧工具箱 下且 es.exe 已装。在那台机器上判断"工具在哪、网络通不通、某个 agent 装没装"时看这里。通用规则见 local-windows-shell-conventions。
-version: v0.4
+version: v0.5
 ---
 
 # wgc-machine（家里的电脑）
@@ -70,6 +70,22 @@ version: v0.4
 | Trae CN | ✅ | `~/.trae-cn/`（含 `builtin/`、`extensions/`） |
 | **Qoder** | ✅ | `~/.qoder/`（**国际版**；`~/.qoder-cn` 不存在 → 不是 CN 版）。项目落在 `~/Documents/Qoder/2026-10-0x-<hash>/`。详见下节 |
 | MarsCode | ❌ | `~/.marscode/` 不存在 |
+| Quicker | ✅ | 主程序 `C:\Program Files\Quicker\QuickerStarter.exe`；数据 `%LOCALAPPDATA%\Quicker\`；动作库 `Documents\Quicker\` |
+
+### Quicker 中转动作 ID（本机）
+
+两个 quicker 系 skill 都依赖一个**本机中转动作**的 ID —— ID 是装完动作才生成的，各机不同，
+填错不会报"ID 错"，而是静默跑到别人机器上（或回退到作者 ID）后才失败：
+
+| skill | config 位置 | key | 本机值 |
+|---|---|---|---|
+| `quicker-skill`（Roslyn 脚本动作） | `store/cache/quicker-skill/config.json` | `wrench_action_id` | `fbbcb15c-bf85-4221-8a30-fe610a6a93b6`（QK扳手） |
+| `qk-action-creator`（组合动作） | `store/cache/qk-action-creator/config.json` | `InjectorActionId` | `7583f9e1-27a4-4c8c-8ddb-64a4645b8032`（AI生成动作） |
+
+⚠️ **这两个 config 会被 `pull.ps1` 冲掉**：`quicker-skill/config.json` 是上游文件，重拉会退回作者的
+`3eebe8d9-7521-46fa-b2e1-502754bce14f`；`qk-action-creator/config.json` 是本机的（上游没带）。
+重拉后按上表填回。`build.ps1` 在配置缺失时会**回退到作者 ID**，所以配错的报错很有迷惑性 ——
+别往网络、权限、动作没装那边查。
 
 ### Qoder 本机实测（2026-10-04）
 
