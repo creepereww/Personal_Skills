@@ -148,7 +148,7 @@
       "cached": true,
       "mount": true,
       "note": "整仓即 skill（默认分支是 master 不是 main）。面向 Quicker 普通模式 v2(Roslyn) 的脚本型动作：生成 .json + .cs + _简介.md，用 scripts/build.ps1 一键构建并回传编译结果；含 FontAwesome 图标索引、UI/Toast/WebView2 模板、publishing_workflow.md 发布指南。⚠️ 需在 Quicker 装「QK扳手」(code=f10c350a-f5cf-4726-543d-08de40f9c963)，并把它在本机的动作 ID 写进 config.json 的 wrench_action_id —— 上游 config.json 里是作者自己的 ID（3eebe8d9…），build.ps1 在配置缺失时也回退到这个 ID，不替换必失败。仓库未声明 license",
-      "pulled_date": "2026-10-20"
+      "pulled_date": "2026-10-21"
     },
     {
       "id": "reverse-engineer-anything",

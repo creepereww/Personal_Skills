@@ -83,7 +83,7 @@ EXE="C:/path/to/program.exe"
   → 给 WSL 写文件用 UNC 就行；但**删除、改权限这类操作一律让用户在 WSL 终端里做**。
 - ⚠️ **`~/bin/wsl2win` 和 `links.conf` 别在 Windows 侧用编辑器改**：可能存成 CRLF
   （shebang 失效）或丢执行位。改完回 WSL 里 `bash -n` 验语法、`chmod +x` 补权限。
-- ⚠️ **9P 显示的权限位是假的，且 Windows 侧复制进 ext4 会丢执行位**（实测 2026-10-13）：
+- ⚠️ **9P 显示的权限位是假的，且 Windows 侧复制进 ext4 会丢执行位**（实测）：
   `.NET Copy` 经 `\\wsl.localhost` 写进 WSL 的文件，Windows 侧 `ls` 照样显示 `rwxr-xr-x`，
   WSL 里真实是 644，一执行就 `Permission denied`；python `os.stat` 经 9P 则一律报 0666。
   **两个视图都不可信**。凡是 Windows 侧复制/新建到 ext4 的可执行文件，最后必须在 WSL 里
