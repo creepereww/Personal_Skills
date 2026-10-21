@@ -8,7 +8,9 @@
 # 说明：
 #   - 只拉文件，单文件 >2MB 跳过
 #   - 会把路径前缀剥掉，保证 store/cache/<id>/SKILL.md 在顶层，方便直接挂给 agent
-#   - 拉取后写回 registry.json 的 commit / cached / pulled_date
+#   - 拉取后把 commit / 拉取日期写进 **store/cache/_state.json**（本机状态，不进版本库）。
+#     registry.json 只存跨机器通用的坐标（repo / path / branch / license / source / note / mount），
+#     不再记录任何「某台机器拉没拉过」的事实
 #   - 未认证 GitHub API 限流 60 次/小时；需要更多就设环境变量 GITHUB_TOKEN
 
 param(
@@ -22,6 +24,15 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $regPath = Join-Path $root "registry.json"
 $reg = Get-Content $regPath -Raw -Encoding UTF8 | ConvertFrom-Json
+
+# 本机拉取状态（拉到哪个 commit、什么时候拉的）—— 每台机器不同，写 store/cache/_state.json。
+# 整个 store/cache/ 被 .gitignore 排除，所以它天然不进版本库，各机互不干扰。
+# 别再往 registry.json 写这些：那是共享文件，各机回写会互相覆盖、产生无意义 diff 和 rebase 冲突。
+$statePath = Join-Path $root "store\cache\_state.json"
+$state = @{}
+if (Test-Path $statePath) {
+    try { $state = (Get-Content $statePath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable) } catch { $state = @{} }
+}
 
 $headers = @{ 'User-Agent' = 'skills-hub' }
 if ($env:GITHUB_TOKEN) { $headers['Authorization'] = "Bearer $env:GITHUB_TOKEN" }
@@ -67,8 +78,11 @@ foreach ($t in $targets) {
         continue
     }
 
-    if ((Test-Path $cacheDir) -and $t.cached -and -not $Force) {
-        $log += ("SKIP     {0,-14} 已缓存 (commit {1})" -f $t.id, $t.commit)
+    # 判据只看「本机有没有这个目录」—— registry 里曾经有个 cached 字段，记的是登记那台机器
+    # 有没有拉过，跟本机无关，靠它判断会得出错误结论（已移除该字段）
+    if ((Test-Path $cacheDir) -and -not $Force) {
+        $lc = if ($state.ContainsKey($t.id) -and $state[$t.id].commit) { $state[$t.id].commit } else { "无记录" }
+        $log += ("SKIP     {0,-14} 本机已缓存 (commit {1})" -f $t.id, $lc)
         continue
     }
 
@@ -127,12 +141,7 @@ foreach ($t in $targets) {
         }
         if ($ok -lt $files.Count) { $log += ("         WARN 部分失败：成功 {0}/{1}" -f $ok, $files.Count) }
 
-        $t.commit = $sha
-        $t.cached = $true
-        # mount 只在条目尚无该字段时补默认 true；已有显式值（含 false）一律保留，不再强制打开
-        if (-not $t.PSObject.Properties['mount']) { $t | Add-Member -NotePropertyName mount -NotePropertyValue $true }
-        if (-not $t.PSObject.Properties['pulled_date']) { $t | Add-Member -NotePropertyName pulled_date -NotePropertyValue "" }
-        $t.pulled_date = (Get-Date).ToString("yyyy-MM-dd")
+        $state[$t.id] = @{ commit = $sha; pulled = (Get-Date).ToString("yyyy-MM-dd") }
         $changed = $true
         $log += ("         已保存到 store\cache\{0}（{1} 个文件）" -f $t.id, $ok)
     }
@@ -143,17 +152,17 @@ foreach ($t in $targets) {
 
 if ($DryRun) {
     $log += ""
-    $log += "dry-run 完成：未联网、未写任何文件，registry.json 保持原样"
+    $log += "dry-run 完成：未联网、未写任何文件"
 }
 elseif ($changed) {
-    $regJson = $reg | ConvertTo-Json -Depth 20
-    [System.IO.File]::WriteAllText($regPath, $regJson, (New-Object System.Text.UTF8Encoding($false)))
+    ($state | ConvertTo-Json -Depth 6) | Set-Content $statePath -Encoding UTF8
     $log += ""
-    $log += "registry.json 已更新"
+    $log += "本机拉取状态已写入 store\cache\_state.json（不进版本库，各机独立）"
+    $log += "registry.json 未改动 —— 它是共享文件，不记本机状态"
     $log += "提示：拉完记得挂载 —— pwsh $(Join-Path $PSScriptRoot 'link.ps1')"
 }
 else {
     $log += ""
-    $log += "本次无任何条目被改动，registry.json 未重写"
+    $log += "本次无任何条目被改动"
 }
 $log -join "`n"

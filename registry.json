@@ -8,11 +8,8 @@
       "path": ".agents/skills/summarize",
       "branch": "main",
       "license": "MIT",
-      "commit": "e813113",
-      "cached": true,
       "mount": true,
-      "note": "源头仓库；网上 bjesuiter/skills、HKUDS/nanobot 等均为转载。用 summarize CLI 摘要 URL/文件/YouTube",
-      "pulled_date": "2026-09-18"
+      "note": "源头仓库；网上 bjesuiter/skills、HKUDS/nanobot 等均为转载。用 summarize CLI 摘要 URL/文件/YouTube"
     },
     {
       "id": "skill-creator",
@@ -20,12 +17,9 @@
       "path": "skills/skill-creator",
       "branch": "main",
       "license": "Apache-2.0",
-      "commit": "b9e19e6",
-      "cached": false,
       "mount": false,
       "retired": true,
-      "note": "已被派生版取代：store/fork/local-skill-creator-anthropics-skills。缓存已移除，不再拉取、不再挂载。上游原文快照存在派生版的 .upstream 里（32987 字符），将来要合并上游更新时用 -Force 重新拉取即可",
-      "pulled_date": "2026-09-18"
+      "note": "已被派生版取代：store/fork/local-skill-creator-anthropics-skills。缓存已移除，不再拉取、不再挂载。上游原文快照存在派生版的 .upstream 里（32987 字符），将来要合并上游更新时用 -Force 重新拉取即可"
     },
     {
       "id": "find-skills",
@@ -33,11 +27,8 @@
       "path": "skills/find-skills",
       "branch": "main",
       "license": "MIT",
-      "commit": "773fb2c",
-      "cached": true,
       "mount": true,
-      "note": "元 skill：帮你找并安装其他 skill",
-      "pulled_date": "2026-09-18"
+      "note": "元 skill：帮你找并安装其他 skill"
     },
     {
       "id": "agent-browser",
@@ -45,12 +36,9 @@
       "path": "skill-data/core",
       "branch": "main",
       "license": "Apache-2.0",
-      "commit": "f5b0b48",
-      "cached": true,
       "mount": true,
       "name_patched": true,
-      "note": "仓库里没有顶层 agent-browser/ 目录，skill 数据都在 skill-data/* 下；core 是最通用的那份。CLI 本体也是这个仓库。上游 frontmatter name 是 core，已改为 agent-browser 以匹配目录名（opencode 强制 name=目录名）；重新 pull 后需重打此补丁",
-      "pulled_date": "2026-09-18"
+      "note": "仓库里没有顶层 agent-browser/ 目录，skill 数据都在 skill-data/* 下；core 是最通用的那份。CLI 本体也是这个仓库。上游 frontmatter name 是 core，已改为 agent-browser 以匹配目录名（opencode 强制 name=目录名）；重新 pull 后需重打此补丁"
     },
     {
       "id": "agent-reach",
@@ -58,11 +46,8 @@
       "path": "agent_reach/skill",
       "branch": "main",
       "license": "MIT",
-      "commit": "a19a171",
-      "cached": true,
       "mount": true,
-      "note": "多平台联网检索（X/Reddit/YouTube/B站/小红书等），31k stars",
-      "pulled_date": "2026-09-18"
+      "note": "多平台联网检索（X/Reddit/YouTube/B站/小红书等），31k stars"
     },
     {
       "id": "neat-freak",
@@ -71,8 +56,6 @@
       "branch": "main",
       "ref": "v3.0",
       "license": "MIT",
-      "commit": "2b4a645",
-      "cached": true,
       "mount": false,
       "note": "已停用（SKILL.md.disabled），不挂载。本地派生见 store/fork/local-neat-freak-lite-khazix-skills"
     },
@@ -82,11 +65,8 @@
       "path": "skills/writing-plans",
       "branch": "main",
       "license": "MIT",
-      "commit": "5bf4e78",
-      "cached": true,
       "mount": true,
-      "note": "写实施计划的方法论（来自 superpowers 技能集）",
-      "pulled_date": "2026-09-19"
+      "note": "写实施计划的方法论（来自 superpowers 技能集）"
     },
     {
       "id": "brainstorming",
@@ -94,11 +74,8 @@
       "path": "skills/brainstorming",
       "branch": "main",
       "license": "MIT",
-      "commit": "5bf4e78",
-      "cached": true,
       "mount": false,
-      "note": "已被派生版取代：store/fork/local-plan-first-superpowers（保留三路径分类/只升不降/硬门控/写回理解/红旗清单，砍掉规格文档+视觉伴侣，改中文 95 行）。原版只作上游参考，不挂载，避免与派生版重复触发",
-      "pulled_date": "2026-09-19"
+      "note": "已被派生版取代：store/fork/local-plan-first-superpowers（保留三路径分类/只升不降/硬门控/写回理解/红旗清单，砍掉规格文档+视觉伴侣，改中文 95 行）。原版只作上游参考，不挂载，避免与派生版重复触发"
     },
     {
       "id": "easyeda-api",
@@ -106,12 +83,9 @@
       "path": "",
       "branch": "main",
       "license": "MIT",
-      "commit": "122fb27",
-      "cached": true,
       "mount": false,
       "version": "v1.1.37",
-      "note": "EasyEDA Pro 的 API skill。整仓即 skill（path 空），原文快照、未做本地改动 —— 重新 pull 直接覆盖即可，无需合并。含 Node 依赖 ws（首次用需在缓存目录跑 npm install）；运行时还需 Node 18+ 与 EasyEDA Pro 桌面端 + run-api-gateway.eext 扩展，桥接服务 scripts/bridge-server.mjs 只监听 127.0.0.1:49620-49629。原 .upstream 的 base_note 已转录于此（cache 目录的 .upstream 会在重新 pull 时被覆盖）",
-      "pulled_date": "2026-09-29"
+      "note": "EasyEDA Pro 的 API skill。整仓即 skill（path 空），原文快照、未做本地改动 —— 重新 pull 直接覆盖即可，无需合并。含 Node 依赖 ws（首次用需在缓存目录跑 npm install）；运行时还需 Node 18+ 与 EasyEDA Pro 桌面端 + run-api-gateway.eext 扩展，桥接服务 scripts/bridge-server.mjs 只监听 127.0.0.1:49620-49629。原 .upstream 的 base_note 已转录于此（cache 目录的 .upstream 会在重新 pull 时被覆盖）"
     },
     {
       "id": "easyeda-agent-connector",
@@ -119,11 +93,9 @@
       "namespace": "user_6b95f8df",
       "license": "MIT",
       "version": "1.9.0",
-      "cached": true,
       "mount": true,
       "name_patched": true,
-      "note": "【2026-10-09 已手工覆盖为官方 release v1.9.0】来源官方 skills.tar.gz，sha256 校验 PASS。SkillHub 渠道内容停于 1.2.10 —— 作者 2026-08-27 打 tag 后未再回传，中间隔 17 个 release（v1.3.0→v1.9.0），故改为从官方 release 跟踪。⚠️ 已实质脱离 SkillHub 管理：skillhub install --force 会把内容退回 1.2.10。仍需本机 easyeda CLI/daemon + EasyEDA Pro 的 .eext 连接器插件 + 开「允许外部交互」才生效，单装 SKILL.md 无用。frontmatter name 已改为与目录名一致的 easyeda-agent-connector（opencode 强制 name=目录名，否则静默加载失败）；再次覆盖后需重打此补丁",
-      "pulled_date": "2026-10-09"
+      "note": "【2026-10-09 已手工覆盖为官方 release v1.9.0】来源官方 skills.tar.gz，sha256 校验 PASS。SkillHub 渠道内容停于 1.2.10 —— 作者 2026-08-27 打 tag 后未再回传，中间隔 17 个 release（v1.3.0→v1.9.0），故改为从官方 release 跟踪。⚠️ 已实质脱离 SkillHub 管理：skillhub install --force 会把内容退回 1.2.10。仍需本机 easyeda CLI/daemon + EasyEDA Pro 的 .eext 连接器插件 + 开「允许外部交互」才生效，单装 SKILL.md 无用。frontmatter name 已改为与目录名一致的 easyeda-agent-connector（opencode 强制 name=目录名，否则静默加载失败）；再次覆盖后需重打此补丁"
     },
     {
       "id": "qk-action-creator",
@@ -131,12 +103,9 @@
       "path": "",
       "branch": "main",
       "license": "NONE",
-      "commit": "5b81c42",
-      "cached": true,
       "mount": true,
       "description_patched": true,
-      "note": "整仓即 skill。生成/修改 Quicker 组合动作的 JSON，并调用 Quicker 里的「注入器」动作把定义写回目标动作（scripts/run_quicker_inject.py）。⚠️ 光装 skill 不能干活：还需在 Quicker 装动作库的「AI生成动作」(code=86296ebf-98b9-49c4-7b71-08deb0ad6916) 并把它的动作 ID 填进 config.json 的 InjectorActionId（上游没带 config.json，首次需自建）；依赖 QuickerStarter.exe + Python3。上游 description 是英文且点名 Codex，已换成中文触发词版 —— 重新 pull 后需重打此补丁。仓库未声明 license",
-      "pulled_date": "2026-10-20"
+      "note": "整仓即 skill。生成/修改 Quicker 组合动作的 JSON，并调用 Quicker 里的「注入器」动作把定义写回目标动作（scripts/run_quicker_inject.py）。⚠️ 光装 skill 不能干活：还需在 Quicker 装动作库的「AI生成动作」(code=86296ebf-98b9-49c4-7b71-08deb0ad6916) 并把它的动作 ID 填进 config.json 的 InjectorActionId（上游没带 config.json，首次需自建）；依赖 QuickerStarter.exe + Python3。上游 description 是英文且点名 Codex，已换成中文触发词版 —— 重新 pull 后需重打此补丁。仓库未声明 license"
     },
     {
       "id": "quicker-skill",
@@ -144,11 +113,8 @@
       "path": "",
       "branch": "master",
       "license": "NONE",
-      "commit": "ed51fce",
-      "cached": true,
       "mount": true,
-      "note": "整仓即 skill（默认分支是 master 不是 main）。面向 Quicker 普通模式 v2(Roslyn) 的脚本型动作：生成 .json + .cs + _简介.md，用 scripts/build.ps1 一键构建并回传编译结果；含 FontAwesome 图标索引、UI/Toast/WebView2 模板、publishing_workflow.md 发布指南。⚠️ 需在 Quicker 装「QK扳手」(code=f10c350a-f5cf-4726-543d-08de40f9c963)，并把它在本机的动作 ID 写进 config.json 的 wrench_action_id —— 上游 config.json 里是作者自己的 ID（3eebe8d9…），build.ps1 在配置缺失时也回退到这个 ID，不替换必失败。仓库未声明 license",
-      "pulled_date": "2026-10-21"
+      "note": "整仓即 skill（默认分支是 master 不是 main）。面向 Quicker 普通模式 v2(Roslyn) 的脚本型动作：生成 .json + .cs + _简介.md，用 scripts/build.ps1 一键构建并回传编译结果；含 FontAwesome 图标索引、UI/Toast/WebView2 模板、publishing_workflow.md 发布指南。⚠️ 需在 Quicker 装「QK扳手」(code=f10c350a-f5cf-4726-543d-08de40f9c963)，并把它在本机的动作 ID 写进 config.json 的 wrench_action_id —— 上游 config.json 里是作者自己的 ID（3eebe8d9…），build.ps1 在配置缺失时也回退到这个 ID，不替换必失败。仓库未声明 license"
     },
     {
       "id": "reverse-engineer-anything",
@@ -156,11 +122,9 @@
       "namespace": "user_6b95f8df",
       "license": "MIT",
       "version": "1.1.0",
-      "cached": true,
       "mount": true,
       "note": "逆向工程通用方法论（REA）：原生二进制/.NET/Electron-JS/固件/浏览器扩展/APK 的反编译、版本比对、架构与功能还原。作者 morluto，上游 morluto/rea v39（SKILL.md frontmatter 里 metadata.upstream 记录）。**来源是 WorkBuddy 技能市场**，marketplace skillId=skill_2110982920457535488，安装器原样落在 ~/.workbuddy/skills/ 是真实目录，2026-10-20 手工收编进 store/cache 并登记本表；保持 source=skillhub 是为了让 check-update.ps1 跳过它（无 repo/path 可查）。⚠️ 自带强制合规前置校验（须对目标有合法权利、目的不含破解/绕过 DRM），不满足会直接拒绝——见其 法律说明.md。frontmatter name 与目录名一致，opencode 可加载",
-      "marketplace_skill_id": "skill_2110982920457535488",
-      "pulled_date": "2026-10-20"
+      "marketplace_skill_id": "skill_2110982920457535488"
     }
   ],
   "notes": [

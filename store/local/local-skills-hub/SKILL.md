@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
 description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时。含授权规则：完善中（v0.x）可直接改并回报，已完善（v1.0+）必须先确认或写 proposals/。
-version: v0.16
+version: v0.17
 ---
 
 # Skills Hub
@@ -150,6 +150,20 @@ pwsh ~/.skills/scripts/audit.ps1                # 合规检查（提交时 hook 
 pwsh ~/.skills/scripts/install-hook.ps1         # 装配 pre-commit hook（新机器 clone 后必做）
 pwsh ~/.skills/scripts/install-hook.ps1 -Check  # 只校验在不在位，不改盘
 ```
+
+## registry.json 只记跨机器一样的事
+
+`registry.json` 是**共享文件**，只放所有机器上相同的事实：
+`repo` / `path` / `branch` / `license` / `source` / `note` / `mount` / `retired`。
+
+**「这台机器拉没拉、拉到哪个 commit」是机器专属事实**，记在 `store/cache/_state.json`
+（整个 `store/cache/` 被 .gitignore 排除，天然不进版本库，各机独立）：
+
+- 判断本机有没有某个上游 skill：**看 `store/cache/<id>/` 在不在**，别看 registry
+- 拉取后 `pull.ps1` 只写本机 state，**不碰 registry.json** —— 共享文件被各机回写会互相覆盖、
+  产生无意义 diff，两台机器各拉一次就是 rebase 冲突
+- 曾经有 `cached` / `commit` / `pulled_date` 三个字段混在 registry 里，记的是**登记那台机器**
+  的状态：本机没实体它照写 `cached: true`，看的人会被骗；各机回写还会互相覆盖。已移除
 
 ## ⚠️ pre-commit hook 不会自己跟过来
 

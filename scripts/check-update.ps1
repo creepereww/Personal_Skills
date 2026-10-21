@@ -18,6 +18,15 @@ if (-not (Test-Path $regPath)) { "找不到 registry.json：$regPath"; exit 1 }
 
 $reg = Get-Content $regPath -Raw -Encoding UTF8 | ConvertFrom-Json
 
+# 本机拉到哪个 commit —— 在 store/cache/_state.json 里（各机独立，不进版本库）。
+# 早先这个事实存在 registry.json 的 commit 字段，但那是共享文件，记的是最后一次拉取的机器
+# 留下的值，在别的机器上会得出「有更新 / 最新」的错误结论。
+$statePath = Join-Path $root "store\cache\_state.json"
+$state = @{}
+if (Test-Path $statePath) {
+    try { $state = (Get-Content $statePath -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable) } catch { $state = @{} }
+}
+
 $headers = @{ "User-Agent" = "skills-hub-check-update" }
 if ($env:GITHUB_TOKEN) { $headers["Authorization"] = "Bearer $($env:GITHUB_TOKEN)" }
 
@@ -36,17 +45,29 @@ foreach ($s in $remoteList) {
 
         $sha7  = $c[0].sha.Substring(0, 7)
         $date  = ([datetime]$c[0].commit.committer.date).ToString("yyyy-MM-dd")
-        $local = $s.commit
-        $state = if (-not $local) { "未记录" }
-                 elseif ($sha7 -ne $local) { "有更新" }
-                 else { "最新" }
+        # 本机没这个缓存目录 → 谈不上有无更新
+        if (-not (Test-Path (Join-Path $root "store\cache\$($s.id)"))) {
+            $rows += [PSCustomObject]@{
+                skill  = $s.id
+                本地   = "—"
+                远程   = $sha7
+                上游日期 = $date
+                状态   = "本机未拉取"
+            }
+            continue
+        }
+
+        $local = if ($state.ContainsKey($s.id) -and $state[$s.id].commit) { $state[$s.id].commit } else { "" }
+        $status = if (-not $local) { "无记录" }
+                  elseif ($sha7 -ne $local) { "有更新" }
+                  else { "最新" }
 
         $rows += [PSCustomObject]@{
             skill  = $s.id
             本地   = $local
             远程   = $sha7
             上游日期 = $date
-            状态   = $state
+            状态   = $status
         }
     } catch {
         $msg = $_.Exception.Message

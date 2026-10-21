@@ -98,14 +98,15 @@ if (Test-Path $machineDir) {
 
 $entities += $machineEntities
 
-# remote skill：registry 里 mount=true 且已缓存的，目录名就是它的 id（不带 local- 前缀）
+# remote skill：registry 里 mount=true 的，目录名就是它的 id（不带 local- 前缀）。
+# 「这台机器有没有」只认 store/cache/<id>/ 在不在 —— 早先靠 registry 的 cached 字段判断，
+# 但那记的是登记那台机器的状态，在本机会得出错误结论（该字段已移除）。
 $regPath = Join-Path $root "registry.json"
 if (Test-Path $regPath) {
     $reg = Get-Content $regPath -Raw -Encoding UTF8 | ConvertFrom-Json
     foreach ($r in $reg.remote) {
         if ($r.PSObject.Properties['_example'] -and $r._example) { continue }
         if (-not $r.mount) { continue }
-        if (-not $r.cached) { continue }
         $d = Join-Path $root "store\cache\$($r.id)"
         if (Test-Path $d) {
             $entities += [PSCustomObject]@{ Name = $r.id; Target = $d; Kind = "remote" }
