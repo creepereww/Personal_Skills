@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
 description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时。含授权规则：完善中（v0.x）可直接改并回报，已完善（v1.0+）必须先确认或写 proposals/。
-version: v0.15
+version: v0.16
 ---
 
 # Skills Hub
@@ -146,7 +146,26 @@ pwsh ~/.skills/scripts/link.ps1 -ListClients    # 看各 agent 装没装、判�
 pwsh ~/.skills/scripts/sync.ps1                 # 拉取 + 刷新
 pwsh ~/.skills/scripts/sync.ps1 -Commit "msg"   # 提交 + 同步
 pwsh ~/.skills/scripts/sync-preferences.ps1     # 分发偏好（sync.ps1 不含这步）
+pwsh ~/.skills/scripts/audit.ps1                # 合规检查（提交时 hook 自动跑，也可手动）
+pwsh ~/.skills/scripts/install-hook.ps1         # 装配 pre-commit hook（新机器 clone 后必做）
+pwsh ~/.skills/scripts/install-hook.ps1 -Check  # 只校验在不在位，不改盘
 ```
+
+## ⚠️ pre-commit hook 不会自己跟过来
+
+**`.git/hooks/` 是 git 内部目录，任何仓库都不进版本库**（`git ls-files .git` 永远为空）。
+所以「提交前跑 audit」这件事没法靠 clone 带过来：新机器 clone 完**默认没有 hook**，
+`audit.ps1` 一次都不会被触发 —— 违规内容一路绿灯推上去，直到某台装了 hook 的机器才炸。
+而且这个缺口是**静默**的：不报错、不提醒，看不出来。
+
+- 新机器 clone 后跑一次 `install-hook.ps1`；之后 `sync.ps1` 每次同步会自动兜底校验并装配
+- hook 内容**不含任何绝对路径**，靠 `git rev-parse --show-toplevel` 现算仓库根 ——
+  换机器、换用户名都不用改（早期手写版写死了 `C:/Users/xxx/.skills/...`，是会坏的）
+- **`scripts/audit.ps1` 是唯一权威检查器，别在别处复刻第二份**（Python 版、bash 版都不要）。
+  复刻版不在版本库里就同步不出去，各机口径一不一致没人知道，结果就是
+  「A 机当良性告警放行、B 机 exit 1 硬拦」。要加检查项或放宽口径，改 `audit.ps1` 本身
+- **被拦住时去修 skill，不是加 `--no-verify`**：违规内容会卡住本机后续每一次提交，
+  绕过只是把债务推给下一台机器
 
 ## ⚠️ 清理目录前：别信目录的 mtime
 

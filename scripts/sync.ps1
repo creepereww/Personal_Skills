@@ -3,6 +3,8 @@
 #   pwsh .\sync.ps1                    拉取远端最新 + 刷新本机联接
 #   pwsh .\sync.ps1 -Commit "msg"      先提交本机改动再拉取推送
 #
+# 每次同步会顺带校验并装配 pre-commit hook（原因见 install-hook.ps1 头部注释）。
+#
 # 注意：commit message 中文没问题（存进 git 的是 UTF-8）。
 #       只是在某些工具里捕获 git 输出时会显示成乱码，看起来像坏了，其实是显示问题。
 #
@@ -53,6 +55,20 @@ else {
 $status = & $git -C $root status --short 2>&1 | Out-String
 $log += "STATUS:"
 $log += $(if ($status.Trim()) { $status.Trim() } else { "  (clean)" })
+
+# hook 自检：.git/hooks/ 不进版本库，不主动补就永远不会有 —— 缺了它 audit 一次都不跑，
+# 违规内容会被静默推上去，到别的装了 hook 的机器上才炸。所以每次同步都兜一次。
+$hookCheck = (& (Join-Path $PSScriptRoot "install-hook.ps1") -Check 2>&1 | Out-String).Trim()
+if ($hookCheck -match "FOREIGN") {
+    $log += "HOOK  ⚠️ 已存在但不是标准版（可能是你自定义的），没动它："
+    $log += "     " + $hookCheck
+    $log += "     想换成标准版：pwsh scripts/install-hook.ps1 -Force"
+} elseif ($hookCheck -notmatch "OK") {
+    $log += "HOOK  缺失或过时（" + $hookCheck + "）—— 自动装配："
+    $log += (& (Join-Path $PSScriptRoot "install-hook.ps1") 2>&1 | Out-String).Trim()
+} else {
+    $log += "HOOK  " + $hookCheck
+}
 
 if (-not $NoLink) {
     $linkOut = & (Join-Path $PSScriptRoot "link.ps1") 2>&1 | Out-String

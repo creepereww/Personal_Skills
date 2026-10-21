@@ -1,7 +1,17 @@
 # audit.ps1 —— 检查 skill 是否符合仓库规范
+#
+# ★ 这是本仓库**唯一权威**的检查器。别在别处复刻第二份（Python 版、bash 版都不要）：
+#   复刻版不在版本库里就同步不出去，各机口径一不一致没人知道，结果就是
+#   「A 机当良性告警放行、B 机 exit 1 硬拦」—— 2026-10-21 就这么漏过一批正文日期。
+#   要加检查项、要放宽口径，改这里，让它对所有机器同时生效。
+#   hook 由 scripts/install-hook.ps1 装配并指向本文件（hook 自己在 .git/hooks/，不进版本库）。
+#
 # 用法（PowerShell 7）：
 #   pwsh .\audit.ps1                 检查 store/local + store/fork（该守规范的）
 #   pwsh .\audit.ps1 -IncludeCache   附带看一眼 store/cache（只报事实，不判定对错）
+#
+# 被拦住时怎么办：**去修 skill**，不是加 --no-verify 绕过。
+#   违规内容会卡住本机后续每一次提交，绕过只是把债务推给下一台机器（或下一次自己）。
 #
 # 判定口径：
 #   local / fork —— 必须守规范，逐项判定
