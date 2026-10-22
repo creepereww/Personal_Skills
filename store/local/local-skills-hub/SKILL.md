@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
-description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时。含授权规则：完善中（v0.x）可直接改并回报，已完善（v1.0+）必须先确认或写 proposals/。
-version: v0.17
+description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时；「skills 更新」「同步技能库」「拉远端同步」等更新仓库的意图也归它管，附 qoder 等 agent 的 AGENTS.md 自动触发提示词。含授权规则：完善中（v0.x）可直接改并回报，已完善（v1.0+）必须先确认或写 proposals/。
+version: v0.18
 ---
 
 # Skills Hub
@@ -299,6 +299,40 @@ description 是唯一常驻上下文的字段，所有 skill 共享这笔预算�
 命名必须匹配 `^[a-z0-9]+(-[a-z0-9]+)*$`（小写字母数字 + 单连字符），**禁止** `@` `.` 大写字母 下划线 连续连字符。opencode 会强制校验，不符合就静默加载失败。
 
 派生自 GitHub 的用 `local-<slug>-<reposlug>` 放 `store/fork/`，并在 `.upstream` 记录 `upstream_repo/path/base_commit/reason`（reason ≤3 行）。
+
+## 实例：让 qoder 自动跑「skills 更新」
+
+**原理**：description 触发只是概率（见上节表格第 2 行）；要某个 agent **100% 自动**响应，只能写它的**用户级指引文件**（第 3 行）。qoder 的这个文件官方确认是 **`~/.qoder/AGENTS.md`**（静态记忆、用户级、跨项目；CN 版在 `~/.qoder-cn/AGENTS.md`；出处 `docs.qoder.com/zh/cli/memory`）。
+
+**双保险**：qoder 挂着 `core` 组即含本 skill（以 `routing.json` 为准），description 触发词已强化 —— AGENTS.md 落地后，用户一说「skills 更新」就走固定流程，不依赖模型是否恰好加载了本 skill。
+
+**落地方法**：哪台机器装了 qoder，就把下面全文复制到那台的 `~/.qoder/AGENTS.md`（**没装的机器别建空目录**）。全文自包含，qoder 会话启动时注入：
+
+```markdown
+# Skills 仓库自动更新（~/.skills）
+
+用户说「skills 更新」「更新 skills」「同步技能库」「技能更新」「拉一下 skills」
+「sync skills」等表达"同步 skills 仓库"意图时，直接按下面流程执行，不要再问：
+
+1. 读 ~/.skills/store/local/local-skills-hub/SKILL.md —— 完整规则以它为准
+2. git -C ~/.skills status --short 看本机有没有未提交改动：
+   - 有 → pwsh ~/.skills/scripts/sync.ps1 -Commit "<本次改动说明>"
+     （提交 + pull --rebase + push + hook 兜底校验 + link 刷新挂载，一把完）
+   - 没有 → pwsh ~/.skills/scripts/sync.ps1（拉远端 + hook 校验 + link）
+3. pwsh ~/.skills/scripts/audit.ps1 合规复核。被拦住就修 skill，
+   禁止 --no-verify；audit.ps1 是唯一权威检查器，别用 Python/bash 复刻
+4. push 失败 → 两条网络路线互换重试（沙箱代理 http://127.0.0.1:58185 ↔ 直连），
+   别断定"网络不通"；api.github.com 始终通，查远端 SHA 用它
+5. 收尾复核：git -C ~/.skills log --oneline -1 与远端 master 的 SHA 一致
+
+铁律：
+- 机器事实以 ~/.skills/store/machine/<主机名>/SKILL.md 为准，别套用别台机器的结论
+- 改 v0.x skill 可直接改并回报；v1.0+ 必须先经用户确认
+- store/cache/ 不进 Git；本机拉取状态在 store/cache/_state.json
+- 脚本是 PowerShell 7（pwsh）；输出中文在某些终端显示乱码是代码页问题，不影响判定
+```
+
+> 家那台（`wgc-machine`）已装 qoder 国际版 —— 上述提示词在家那台落地即可，本机没装不建目录。
 
 ## skill 没生效怎么查
 
