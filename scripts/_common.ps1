@@ -24,8 +24,11 @@ function Get-GitExe {
     }
 
     # 2. PATH
-    $cmd = Get-Command git -CommandType Application -ErrorAction SilentlyContinue
-    if ($cmd) { return $cmd.Source }
+    #    注意：PATH 里可能有多个 git（本机实况：D:\Git\mingw64\bin 与 D:\Git\cmd 都在），
+    #    Get-Command 会返回数组 —— 直接取 .Source 会拼成 "a.exe b.exe"，
+    #    调用时被当成一个非法命令名。故只取第一个。
+    $cmd = @(Get-Command git -CommandType Application -ErrorAction SilentlyContinue)
+    if ($cmd.Count -gt 0) { return $cmd[0].Source }
 
     # 3. 常见安装位置兜底
     #    注意：**不要在这里写死某台机器的专属路径**。机器专属事实属于
