@@ -1,7 +1,7 @@
 ---
 name: wgc-work1-px
-description: 公司电脑 WGC-WORK1-PX 本机环境事实 —— 机型（Lecoo）、HOME 与 %USERPROFILE% 错位（HOME 在 D:\AppData\Roaming\SPB_Data）、两个 git（D:\Git 与 PortableGit，后者已升 1.3.0，credential.helper 别写死版本路径）、装了哪些 agent（WorkBuddy/ZCode/QClaw/Codex/MarsCode/Trae；opencode 在 WSL 里、v2 配置直挂、画像只留编程 4 个）、推送 GitHub 姿势（github.com 被 Watt Toolkit 劫持到 127.0.0.1；Bash 可直推、凭证助手用 manager 名；代理与直连两条路线时通时断、11-05 再反转：代理 502 直连通）、PowerShell 工具整场缺席的替代路径、Everything 在 D:\ 无 es.exe。判断"工具在哪、网络通不通、怎么 push"看这里。通用规则见 local-windows-shell-conventions。
-version: v0.15
+description: 公司电脑 WGC-WORK1-PX 本机环境事实 —— 机型（Lecoo）、HOME 与 %USERPROFILE% 错位（HOME 在 D:\AppData\Roaming\SPB_Data）、两个 git（D:\Git 与 PortableGit，后者已升 1.3.0，credential.helper 别写死版本路径）、装了哪些 agent（WorkBuddy/ZCode/QClaw/Codex/MarsCode/Trae；opencode 在 WSL 里、v2 配置直挂、画像只留编程 4 个）、推送 GitHub 姿势（github.com 被 Watt Toolkit 反代到本机、证书是它的自签；解法＝schannel + 关吊销检查，已固化；PortableGit 无 CA bundle 故 openssl 必败；凭证助手用 manager 名）、PowerShell 工具整场缺席的替代路径、Everything 在 D:\ 无 es.exe。判断"工具在哪、网络通不通、怎么 push"看这里。通用规则见 local-windows-shell-conventions。
+version: v0.16
 ---
 
 # wgc-work1-px（公司电脑）
@@ -219,6 +219,24 @@ $b64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("creepereww:$($
 
 **根治（推荐）**：关掉 Watt Toolkit 的「GitHub 加速」，或退出 Watt Toolkit —— 之后走常规路径即可。
 
+**2026-11-05 补记：劫持回归 + 两条判据订正**
+
+- 现象：**代理与直连同时**报同一个 `SSL certificate OpenSSL verify result: unable to get local issuer
+  certificate (20)`。**两条路线报同一个 SSL 错 = 不是路线问题**（是 TLS 层或 CA 缺失），别再调代理。
+- 判据订正：这次 `nslookup github.com` 返回的是**真实 IP** `20.205.243.166` —— DNS 不再是可靠判据
+  （Watt Toolkit 没改 DNS 表层，照样劫持）。可靠判据两条：① 实际连接端点是 `[::ffff:127.0.0.1]:443`；
+  ② 证书 `issuer` 是 `CN=SteamTools Certificate`（`subject` 才是 `CN=github.com`，别搞反）。
+- 一条命令定位（PowerShell，比 curl 稳，curl 此时只会超时无输出）：
+
+```powershell
+$t=New-Object Net.Sockets.TcpClient("github.com",443); "端点: " + $t.Client.RemoteEndPoint
+$s=New-Object Net.Security.SslStream($t.GetStream(),$false,({$true})); $s.AuthenticateAsClient("github.com")
+"issuer: " + $s.RemoteCertificate.Issuer
+```
+
+- **同时还有第二重坑**：PortableGit 1.3.0 删掉了 CA bundle（见下面「正确姿势」第 2 条），
+  所以哪怕没有劫持，`http.sslBackend=openssl` 也推不上去。两处一起改才通。
+
 > ⚠️ **2026-10-21 订正：本条已失效。** 当天实测 Bash 里的 `git fetch` / `git push`
 > **都能正常联网并返回真实输出**（`fdd5e4d..982434c` 推送成功）。「静默吞掉」是 10-09 前后的
 > 临时现象，不是本机稳定行为 —— **现在 Bash 里可以直接推**，不需要绕 PowerShell。
@@ -236,8 +254,11 @@ $b64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("creepereww:$($
 
 1. **WorkBuddy 沙箱会注入代理**（`http_proxy=http://127.0.0.1:58185`），该代理对
    `github.com` 返回 **502**（但 `api.github.com`/`gitee.com` 却是通的）。→ 推送必须**绕开代理**。
-2. **`http.sslBackend=schannel`（Git for Windows 默认）在本机会报**
-   `schannel: server closed abruptly (missing close_notify)`。→ 要改用 **openssl** 后端。
+2. **TLS 后端要选对**（2026-11-05 订正，与旧结论**相反**）：WorkBuddy 的 PortableGit 1.3.0
+   **没有 `mingw64/ssl/` 目录、没有 ca-bundle.crt**（`D:\Git` 也没有），所以 `openssl` 后端对
+   **任何** HTTPS 都报 `unable to get local issuer certificate (20)`；`schannel` 走 Windows 证书库，
+   能认 Watt Toolkit 装进系统根的 SteamTools 证书 —— **本机该用 schannel**（再关吊销检查）。
+   旧记录「schannel 报 `missing close_notify` 要改 openssl」是 PortableGit 还自带 CA 的时期，已失效。
 3. **`credential.helper` 默认是 `helper-selector`**（来自 WorkBuddy PortableGit 的 system gitconfig），
    非交互环境下会**卡住等 GUI 选凭证**（表现为 push 挂起，直到 120s 超时被 SIGTERM）；
    即使绕开它，也可能报 `could not read Username for 'https://github.com': terminal prompts disabled`。
@@ -246,9 +267,10 @@ $b64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("creepereww:$($
    「git 凭证：会弹 GUI 框卡住 push」。GCM 里**已存凭证**（`creepereww` + token，可用
    `echo -e "protocol=https\nhost=github.com\n" | /mingw64/bin/git-credential-manager get` 取到）。
 4. `github.com:443` 本身**时通时断** —— 一次不行就**多重试几次**（实测第 2~4 次才成功）。
-5. **`github.com` 被 Watt Toolkit 劫持到 `127.0.0.1`** —— 见上面「★★」那节。
-   表现是「证书错 / 吊销检查错 / 静默 exit 128」，**不是网络不通**；解法是放宽 TLS 校验 +
-   预置 Basic 认证头（`scripts/push.ps1` 已内置），或干脆关掉 Watt Toolkit 的 GitHub 加速。
+5. **`github.com` 被 Watt Toolkit 反代到 `127.0.0.1`** —— 见上面「★★」那节。
+   表现是「证书错 / 吊销检查错 / 静默 exit 128」，**不是网络不通**；2026-11-05 起最简解法是
+   **schannel 后端 + 关吊销检查**（已固化进本仓库 `.git/config`，`git push` 直接跑）；
+   `scripts/push.ps1` 里那套「放宽校验 + 预置 Basic 头」作为兜底保留，或干脆关掉 Watt Toolkit 的加速。
 
 > **⚠️ 这台机有两个 git，system 配置不一样**（实测）：
 > - **bash 里** `which git` → PortableGit 的 `/mingw64/bin/git`（2.55），system config = **`helper-selector`**
@@ -268,11 +290,12 @@ env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY GIT_TERMINAL_PROMP
 
 **永久固化**（免得每次敲这么长 —— 已对本仓库设好）：
 ```bash
-git config http.sslBackend openssl
+git config http.sslBackend schannel             # 2026-11-05 改：openssl 无 CA bundle，必报 (20)
+git config http.schannelCheckRevoke false       # 吊销检查（CRL/OCSP）在本机不可达
 git config --local --replace-all credential.helper ""     # 先清空 system 累积的列表（helper-selector）
 git config --local --add credential.helper manager        # 用助手名，别写绝对路径！
 ```
-之后只要绕开代理即可：`env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY git push`
+之后 **`git push` 直接跑**（2026-11-05 实测：schannel 下带不带沙箱代理都通，不用再 `env -u` 绕代理）。
 
 > ⚠️ **别把 `credential.helper` 写成 PortableGit 的绝对路径** —— 2026-10-21 就是这么栽的：
 > 仓库里写死了 `.../PortableGit/versions/1.2.0/mingw64/bin/git-credential-manager`，
