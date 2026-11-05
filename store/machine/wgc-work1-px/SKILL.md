@@ -329,6 +329,19 @@ quicker-skill `ed51fce`）；skillhub 源（easyeda-agent-connector / reverse-en
 → 两条路线**都会随时间变脸**，没有一条永久可用。`scripts/push.ps1` 目前第 1 步就是
 绕开代理 —— 直连不通的时段它也会失败，此时手工**带代理**推：
 `http_proxy=http://127.0.0.1:58185 https_proxy=http://127.0.0.1:58185 GIT_TERMINAL_PROMPT=0 git push`。
+
+**★ 2026-11-05：双路线同时失败时，先分域名再下结论。** 当天代理 `502` 与直连 21s 超时
+同时出现，但同一时段 `api.github.com` / `codeload.` / `raw.` / `objects.` 全可达，
+`ssh.github.com:443` 也可达 —— **只有 `github.com` 这一个域名断**。所以不是代理坏了、
+也不是配置问题，是定向阻断：要么等它缓过来，要么换通道（`ssh.github.com:443` 需要
+SSH key；本机 token 权限是 `gist, repo, workflow`，**不含** `admin:public_key`，key 得
+在网页上加）。快速排查：
+
+```bash
+for h in github.com api.github.com codeload.github.com raw.githubusercontent.com; do
+  curl -sI --max-time 6 -o /dev/null -w "$h -> %{http_code}\n" "https://$h"
+done
+```
 `api.github.com` 在两条路线下始终通（查远端 SHA / compare 不受影响）。
 
 **④ 钩子匹配面比 10-21 记的更宽**：Bash 命令里出现 "PowerShell" 字样即被安全钩子拦
