@@ -3,24 +3,27 @@
 """
 记忆待办归集 (memory-todo-harvest)
 =================================
-把散落在 WorkBuddy 各项目记忆文件里的「待办」扫出来，按项目分组，
-生成一份可在本机勾选、且能追溯出处的待办看板。
+把散落在**各 agent 项目/个人记忆文件**里的「待办」扫出来，按项目分组，
+每条带上「来自哪个 agent」，生成本地可预览的待办清单（再往上写云表是同步脚本的事）。
 
-设计原则（来自演示规格）：
-- 纯标准库，单脚本，不联网，数据不出本机。
+设计原则：
+- 纯标准库，单脚本，不联网，扫描数据不出本机。
 - 只认三类显式信号，不猜：
     1) 待办语义章节：日志里「## 待办 / ## 下一步 / ## 未完成」标题下的条目
     2) 未勾选 checkbox：- [ ] xxx（勾过的 - [x] 记为已完成）
     3) 行内待办句：**待办**：①…②…③…（编号自动拆成多条）
-- 每条待办都带「出处」：来源日志文件、行号、归属项目、识别依据。
-- 勾选判定存在独立的判定档案（data/judgments.json），与原始记忆文件
-  完全解耦，不回写、不污染原始记录。
+- 每条待办都带「出处」：agent、来源日志文件、行号、归属项目、识别依据。
+- 记忆位置写在 AGENT_SOURCES 里（各 agent 的官方默认路径），**目录不存在就跳过**，
+  所以同一份代码在任何一台机器上都能跑，不必为本机改常量。
+- 判定/勾选状态与原始记忆文件完全解耦，不回写、不污染原始记录。
 
 用法：
-    python harvest.py                # 扫描 + 本地起服务 + 打开看板（推荐）
-    python harvest.py --scan         # 只扫描并打印汇总，不起服务
-    python harvest.py --build HTML   # 导出一份静态 HTML 到指定路径
-    python harvest.py --root DIR     # 额外扫描指定根目录下的 .workbuddy/memory
+    python harvest.py                    # 扫描 + 本地起服务 + 打开看板
+    python harvest.py --scan             # 只扫描并打印汇总，不起服务
+    python harvest.py --build HTML       # 导出一份静态 HTML 到指定路径
+    python harvest.py --json OUT.json    # 导出结构化清单（给不能上云的 agent 用）
+    python harvest.py --root DIR         # 额外扫描指定根目录下的 .workbuddy/memory
+    python harvest.py --agent Qoder      # 只看某个 agent 的记忆源
 """
 
 import argparse
@@ -30,6 +33,7 @@ import html
 import json
 import os
 import re
+import sys
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
@@ -54,6 +58,77 @@ PROJECT_ALIASES = {
 }
 # MEMORY.md 首标题里的通用措辞，命中则不是项目名
 _GENERIC_TITLE = ("项目长期笔记", "长期笔记", "本地记忆", "跨项目", "Cross-project", "仅此", "勿", "工作区")
+
+HOME = os.path.expanduser("~")
+
+
+def scan_homes():
+    """agent 记忆的用户目录。Windows 上就是 ~；WSL 里 ~ 是 Linux 家目录，而 Windows 侧各 agent 的记忆
+    挂在 /mnt/c/Users/<用户> 下——opencode 这类跑在 WSL 的 agent 被要求归集待办时两边都得能看到。
+    Windows 分支只返回 [HOME]，所以待办 id 与既有云表行为完全不变。"""
+    homes = [HOME]
+    if sys.platform.startswith("linux") and os.path.isdir("/mnt/c/Users"):
+        for p in sorted(glob.glob("/mnt/c/Users/*")):
+            if not os.path.isdir(p):
+                continue
+            if any(os.path.isdir(os.path.join(p, d))
+                   for d in (".qoder", ".qoder-cn", ".workbuddy", ".claude", ".codex", ".trae-cn", ".openclaw", ".qclaw")):
+                homes.append(p)
+    return homes
+
+# WorkBuddy 的项目记忆跟着工作区走（<工作区>/.workbuddy/memory/），根目录是本机事实，
+# 放在 DEFAULT_ROOTS 里；其余 agent 的记忆都集中在用户目录下，用 HOME 相对路径描述，跨机器成立。
+#   kind=project  → 项目级：项目名从路径里 memory/memories 前一段推（见 _project_segment）
+#   kind=personal → 个人级：整份记忆都归到 PERSONAL_LABEL 那一个分组
+# 只写各家**官方默认路径**；目录不存在 = 该 agent 本机没写过记忆，静默跳过。
+AGENT_SOURCES = [
+    {"agent": "Qoder", "kind": "project", "pattern": ".qoder/projects/*/memory/*.md"},
+    {"agent": "Qoder", "kind": "personal", "pattern": ".qoder/memory/*.md"},
+    {"agent": "Claude Code", "kind": "project", "pattern": ".claude/projects/*/memory/*.md"},
+    {"agent": "Claude Code", "kind": "personal", "pattern": ".claude/agent-memory/*/MEMORY.md"},
+    {"agent": "Codex", "kind": "personal", "pattern": ".codex/memories/*.md"},
+    {"agent": "Gemini", "kind": "personal", "pattern": ".gemini/GEMINI.md"},
+    {"agent": "Windsurf", "kind": "project", "pattern": ".codeium/windsurf/memories/*/*.md"},
+    {"agent": "Trae", "kind": "personal", "pattern": ".trae-cn/memory/*.md"},
+    {"agent": "Trae", "kind": "personal", "pattern": ".trae/memory/*.md"},
+    {"agent": "OpenClaw", "kind": "personal", "pattern": ".openclaw/workspace/memory/*.md"},
+    {"agent": "QClaw", "kind": "personal", "pattern": ".qclaw/workspace/memory/*.md"},
+    {"agent": "ZCode", "kind": "project", "pattern": ".zcode/projects/*/memory/*.md"},
+]
+
+# 个人级记忆的分组名。WorkBuddy 沿用「个人记忆」（它在云表里已有行，改名会让待办ID 变脸、
+# 排序和别名全丢）；别的 agent 带上前缀，看板上分得清是谁的记忆。
+PERSONAL_LABEL = {"WorkBuddy": "个人记忆"}
+
+# slug 形态的项目段里这些词只是路径噪音（Qoder/Claude 把工作区绝对路径编码进目录名）
+_SLUG_NOISE = {"users", "home", "data", "ai", "longtermpro", "workspace", "projects", "workbuddy"}
+
+
+def personal_label(agent):
+    return PERSONAL_LABEL.get(agent) or (agent + " 记忆")
+
+
+def _slug_to_name(seg):
+    """把工作区路径编码出来的目录名还原成一个能看的名字：C--Users-x-Desktop--- → Desktop。"""
+    tail = [s for s in seg.replace("--", "/").split("/") if s]
+    if not tail:
+        return seg
+    parts = [p for p in tail[-1].split("-") if p]
+    keep = [p for p in parts if p.lower() not in _SLUG_NOISE and p.lower() != os.path.basename(HOME).lower()]
+    return "-".join(keep[-2:]) if keep else (parts[-1] if parts else seg)
+
+
+def _project_segment(path, agent):
+    """项目级记忆：取路径里 memory/memories 的前一段当项目键；推不出来就退回该 agent 的记忆分组。"""
+    rel = os.path.relpath(path, HOME).replace(os.sep, "/")
+    parts = rel.split("/")
+    for i, seg in enumerate(parts):
+        if seg.lower() in ("memory", "memories") and i > 0:
+            cand = parts[i - 1]
+            if cand.lower() not in ("workspace", personal_label(agent).lower()):
+                return _slug_to_name(cand) if "--" in cand else cand
+    return ""
+
 
 
 def _name_from_memory_md(projdir):
@@ -171,12 +246,14 @@ def split_numbered(content):
 
 def make_id(project, relpath, line, text):
     # 不含行号：日志里增删行不会让待办「变脸」（排序/别名按 id 保留）；
-    # 同一文件里同文本重复只算一条（去重时也会合并）
+    # 同一文件里同文本重复只算一条（去重时也会合并）。
+    # 不含 agent：agent 只是 relpath 的前缀不同（.qoder/memory/… vs .workbuddy/…），
+    # id 天然分得开；而这个公式已经在云表里落了行，改公式 = 全表重建、排序和别名全丢。
     raw = f"{project}|{relpath}|{text}"
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
 
 
-def extract_todos_from_file(path, project, relroot):
+def extract_todos_from_file(path, project, relroot, agent="WorkBuddy"):
     todos = []
     try:
         with open(path, encoding="utf-8") as f:
@@ -215,7 +292,7 @@ def extract_todos_from_file(path, project, relroot):
             done = cb.group(1).lower() == "x"
             text = clean(cb.group(2))
             if text:
-                todos.append(_mk(project, relpath, i, text, "checkbox", done, section_name))
+                todos.append(_mk(project, relpath, i, text, "checkbox", done, section_name, agent))
             continue
 
         # 3) 行内待办句（仅 **待办**： 形式，且需带编号或单条短语）
@@ -227,7 +304,7 @@ def extract_todos_from_file(path, project, relroot):
                     text = clean(piece)
                     # 丢弃纯标点/省略号等无实质内容的碎片（如示例语法 ①…②…③… ）
                     if text and re.search(r"[一-鿿A-Za-z0-9]", text):
-                        todos.append(_mk(project, relpath, i, text, "inline", False, None))
+                        todos.append(_mk(project, relpath, i, text, "inline", False, None, agent))
             continue
 
         # 4) 待办章节下的列表项（过滤结论/发现类笔记句）
@@ -236,20 +313,21 @@ def extract_todos_from_file(path, project, relroot):
             if li:
                 text = clean(li.group(1))
                 if text and not _is_note(text):
-                    todos.append(_mk(project, relpath, i, text, "section", False, section_name))
+                    todos.append(_mk(project, relpath, i, text, "section", False, section_name, agent))
                 continue
             li2 = re.match(r"^\s*\d+[.)]\s+(.*)$", line)
             if li2:
                 text = clean(li2.group(1))
                 if text and not _is_note(text):
-                    todos.append(_mk(project, relpath, i, text, "section", False, section_name))
+                    todos.append(_mk(project, relpath, i, text, "section", False, section_name, agent))
 
     return todos
 
 
-def _mk(project, relpath, line, text, signal, done, section):
+def _mk(project, relpath, line, text, signal, done, section, agent="WorkBuddy"):
     return {
         "id": make_id(project, relpath, line, text),
+        "agent": agent,
         "project": project,
         "file": relpath,
         "line": line,
@@ -261,23 +339,44 @@ def _mk(project, relpath, line, text, signal, done, section):
     }
 
 
-def discover_memory_files(extra_roots):
+def discover_memory_files(extra_roots, seen=None):
+    """WorkBuddy：项目记忆跟着工作区走，个人记忆在 ~/.workbuddy/user-*/。"""
+    seen = seen if seen is not None else set()
     roots = list(DEFAULT_ROOTS) + list(extra_roots)
     files = []
-    seen = set()
     for root in roots:
         # 项目记忆：<root>/*/.workbuddy/memory/*.md
         for p in glob.glob(os.path.join(root, "*", ".workbuddy", "memory", "*.md")):
             ap = os.path.abspath(p)
             if ap not in seen:
                 seen.add(ap)
-                files.append((ap, "project", root))
+                files.append((ap, "WorkBuddy", "project", root))
         # 个人记忆：<root>/.workbuddy/user-*/MEMORY.md 及日志
         for p in glob.glob(os.path.join(root, ".workbuddy", "user-*", "*.md")):
             ap = os.path.abspath(p)
             if ap not in seen:
                 seen.add(ap)
-                files.append((ap, "personal", root))
+                files.append((ap, "WorkBuddy", "personal", root))
+    return files
+
+
+def discover_agent_files(only_agent=None):
+    """其余 agent：按 AGENT_SOURCES 的官方默认路径扫，根目录是 scan_homes()（Windows 只有 ~；
+    WSL 还要带上 /mnt/c/Users/<用户>）。relpath 一律相对各自的家目录，所以同一条记忆在哪个壳里扫到都是同一个 id。"""
+    seen = set()
+    files = []
+    for src in AGENT_SOURCES:
+        if only_agent and src["agent"].lower() != str(only_agent).lower():
+            continue
+        for home in scan_homes():
+            for p in glob.glob(os.path.join(home, *src["pattern"].split("/"))):
+                if not os.path.isfile(p):
+                    continue
+                ap = os.path.abspath(p)
+                if ap in seen:
+                    continue
+                seen.add(ap)
+                files.append((ap, src["agent"], src["kind"], home))
     return files
 
 
@@ -293,25 +392,39 @@ def project_name(path, kind, root):
     return os.path.basename(os.path.dirname(os.path.dirname(path)))
 
 
-def scan(extra_roots):
-    files = discover_memory_files(extra_roots)
+def scan(extra_roots, only_agent=None):
+    files = []
+    seen = set()
+    if not only_agent or str(only_agent).lower() == "workbuddy":
+        files += discover_memory_files(extra_roots, seen)
+    files += discover_agent_files(only_agent)
     todos = []
-    for path, kind, root in files:
+    for path, agent, kind, root in files:
+        if agent == "WorkBuddy":
+            # WorkBuddy 的老路径不动：项目名、relpath 与改造前逐字一致，云表已有行的待办ID 才不会变脸
+            if kind == "personal":
+                proj = project_name(path, kind, root)
+            else:
+                dirname = project_name(path, kind, root)
+                # path = <root>/<项目>/.workbuddy/memory/x.md → 项目根要剥三层
+                proj = friendly_project(dirname, os.path.dirname(os.path.dirname(os.path.dirname(path))))
+            todos.extend(extract_todos_from_file(path, proj, root, agent))
+            continue
+        # 其余 agent：个人级归到「<agent> 记忆」，项目级从路径里 memory/ 前一段推
         if kind == "personal":
-            proj = project_name(path, kind, root)
+            proj = personal_label(agent)
         else:
-            dirname = project_name(path, kind, root)
-            # path = <root>/<项目>/.workbuddy/memory/x.md → 项目根要剥三层
-            proj = friendly_project(dirname, os.path.dirname(os.path.dirname(os.path.dirname(path))))
-        todos.extend(extract_todos_from_file(path, proj, root))
+            seg = _project_segment(path, agent)
+            proj = PROJECT_ALIASES.get(seg, seg) if seg else personal_label(agent)
+        todos.extend(extract_todos_from_file(path, proj, root, agent))
     for t in todos:
         t["done"] = t["source_done"]
         t["auto"] = t["project"]
-    # 去重：同项目 + 同日志文件名 + 同行号 + 同文本只留一条
+    # 去重：同 agent + 同项目 + 同日志文件名 + 同行号 + 同文本只留一条
     # （同一项目的镜像工作区，如 C 盘旧位置与 D 盘主目录，会扫出重复内容）
     seen = {}
     for t in todos:
-        key = (t["project"], os.path.basename(t["file"]), t["line"], t["text"])
+        key = (t["agent"], t["project"], os.path.basename(t["file"]), t["line"], t["text"])
         if key not in seen:
             seen[key] = t
     return list(seen.values())
@@ -363,6 +476,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .tag.s-inline { background:#fff3e0; color:#e8820c; }
   .tag.sec { background:#f3ecf7; color:#7d5b75; }
   .tag.proj { background:#eef1f5; color:#5b6470; font-weight:600; }
+  .tag.ag { background:#e8f7f4; color:#0f8a7d; font-weight:600; }
   .sect-head { margin:26px 0 4px; font-size:15px; font-weight:700; display:flex; align-items:baseline; gap:8px; }
   .sect-head .cnt { font-size:12px; color:var(--muted); font-weight:normal; }
   .sect-head.stale { color:var(--warn); }
@@ -415,6 +529,7 @@ function itemEl(t, showProject){
   main.textContent = t.text; txt.appendChild(main);
   const meta = document.createElement('div'); meta.className = 'meta';
   let html = '<span class="tag s-' + t.signal + '">' + signalLabel(t.signal) + '</span>';
+  if (t.agent) html += '<span class="tag ag">' + escapeHtml(t.agent) + '</span>';
   if (t.section) html += '<span class="tag sec">' + escapeHtml(t.section) + '</span>';
   if (showProject) html += '<span class="tag proj">' + escapeHtml(t.project) + '</span>';
   if (t.date) html += '<span>📅 ' + escapeHtml(t.date) + '</span>';
@@ -561,24 +676,49 @@ def serve(todos, extra_roots):
         httpd.server_close()
 
 
+def _console_safe():
+    """Windows 终端默认 cp936，打印 ✓ ▶ 这类字符会 UnicodeEncodeError 直接把扫描打断。
+    不可编码的降级成 '?'（判定信息不丢），文件写入仍走显式 UTF-8，不受影响。"""
+    for s in (sys.stdout, sys.stderr):
+        try:
+            s.reconfigure(errors="replace")
+        except Exception:
+            pass
+
+
 def main():
+    _console_safe()
     ap = argparse.ArgumentParser(description="记忆待办归集 (memory-todo-harvest)")
     ap.add_argument("--scan", action="store_true", help="只扫描并打印汇总")
     ap.add_argument("--build", metavar="HTML", help="导出静态 HTML 到指定路径")
-    ap.add_argument("--root", action="append", default=[], help="额外扫描根目录")
+    ap.add_argument("--json", metavar="OUT", help="导出结构化清单（供不能上云的 agent 交接用）")
+    ap.add_argument("--root", action="append", default=[], help="额外扫描 WorkBuddy 风格的根目录")
+    ap.add_argument("--agent", metavar="NAME", help="只扫某个 agent 的记忆源，如 Qoder")
     args = ap.parse_args()
 
-    todos = scan(args.root)
+    todos = scan(args.root, args.agent)
+    by_agent = {}
+    for t in todos:
+        by_agent[t["agent"]] = by_agent.get(t["agent"], 0) + 1
+
+    if args.json:
+        with open(args.json, "w", encoding="utf-8") as f:
+            json.dump(todos, f, ensure_ascii=False, indent=1)
+        print(f"已导出 {len(todos)} 条 → {args.json}")
+        # 单独 --json 时到此为止，不能再落到 serve()（那会常驻监听、永不退出）
+        if not (args.scan or args.build):
+            return
 
     if args.scan:
         by_proj = {}
         for t in todos:
-            by_proj.setdefault(t["project"], []).append(t)
-        print(f"扫描到 {len(todos)} 条待办，分布在 {len(by_proj)} 个项目：")
-        for p in sorted(by_proj):
-            print(f"\n▶ {p} （{len(by_proj[p])} 条）")
-            for t in by_proj[p]:
-                mark = "✓" if t["done"] else " "
+            by_proj.setdefault((t["agent"], t["project"]), []).append(t)
+        dist = " / ".join(f"{a} {n}" for a, n in sorted(by_agent.items()))
+        print(f"扫描到 {len(todos)} 条待办，{len(by_proj)} 个项目分组：{dist}")
+        for (agent, p) in sorted(by_proj):
+            print(f"\n■ [{agent}] {p} （{len(by_proj[(agent, p)])} 条）")
+            for t in by_proj[(agent, p)]:
+                mark = "x" if t["done"] else " "
                 print(f"  [{mark}] {t['text']}   <{t['signal']} | {t['date'] or '无日期'} | {t['file']}:{t['line']}>")
         return
 

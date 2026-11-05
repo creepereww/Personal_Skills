@@ -18,8 +18,8 @@
 
     "core": {
       "label": "通用协作规则",
-      "why": "换台机器、换个 agent 都成立的工作方式与硬约束，每个 agent 都该有（机器档案不归组，按主机名自动挂给所有 client）",
-      "skills": ["local-skills-hub", "local-script-first", "local-plan-first-superpowers", "local-memory-map", "local-windows-shell-conventions"]
+      "why": "换台机器、换个 agent 都成立的工作方式与硬约束，每个 agent 都该有（机器档案不归组，按主机名自动挂给所有 client）。local-memory-todo-harvest 也在这里：它扫的是各 agent 自己的记忆目录，哪个 agent 被要求「归集待办」都能跑（只有写云表那一步回 WorkBuddy）",
+      "skills": ["local-skills-hub", "local-script-first", "local-plan-first-superpowers", "local-memory-map", "local-windows-shell-conventions", "local-memory-todo-harvest"]
     },
     "skill-dev": {
       "label": "技能开发",
@@ -58,8 +58,8 @@
     },
     "wb-only": {
       "label": "WorkBuddy 专属",
-      "why": "内容全是 WorkBuddy 宿主特有的（工具层输出、安全策略、shim 补丁、沙箱代理），其他 agent 读到是噪音甚至误导",
-      "skills": ["local-workbuddy-quirks", "local-memory-todo-harvest"]
+      "why": "内容全是 WorkBuddy 宿主特有的（工具层输出、安全策略、shim 补丁、沙箱代理），其他 agent 读到是噪音甚至误导。记忆待办归集已改成全 agent 可跑，移到 core",
+      "skills": ["local-workbuddy-quirks"]
     },
     "reverse": {
       "label": "逆向工程",
