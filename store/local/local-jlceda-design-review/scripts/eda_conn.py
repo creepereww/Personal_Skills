@@ -132,12 +132,26 @@ def list_docs(project=None):
 
 
 def activate_doc(project, dtype):
-    """把前台文档切到指定类型（schematic|pcb）的第一个文档；返回该文档或 None。"""
-    for doc in list_docs(project):
-        if doc["type"] == dtype:
-            args = ["doc", "open", doc["name"]]
-            if project:
-                args += ["--project", project]
-            run_cli(args)
-            return doc
-    return None
+    """把前台文档切到指定类型（schematic|pcb）；返回该文档或 None。
+
+    两条纪律（都踩过坑）：
+      1. **已经是该类型的活动文档就直接复用，不切** —— EasyEDA 每次保存/重建会轮换文档 uuid，
+         工程里很容易出现两个同名 `P1`（一旧一新）。盲目切会导致读到旧副本，甚至报
+         `获取所有器件失败`。
+      2. **一律用 uuid 打开，不用名字** —— 同名多份时按名字打开会打错。
+    """
+    docs = list_docs(project)
+    same = [d for d in docs if d["type"] == dtype]
+    if not same:
+        return None
+
+    cur = next((d for d in docs if d.get("active")), None)
+    if cur and cur["type"] == dtype:
+        return cur
+
+    target = same[-1]
+    args = ["doc", "open", target["uuid"]]
+    if project:
+        args += ["--project", project]
+    run_cli(args)
+    return target

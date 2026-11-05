@@ -196,13 +196,32 @@ def render_io_macros(rows, tpl):
             at = last_pwm + 1
             for n in range(heat_used + 1, 4):
                 text = "#define PIN_HEAT%d_CTL dummy_pin" % n
-                pins.insert(at, text.ljust(pad) + "// 未用到的话使用盲变量")
+                pins.insert(at, text.ljust(max(pad, len(text) + 1)) + "// 未用到的话使用盲变量")
                 at += 1
 
         return "\n".join(pins + irqs)
 
+    def actions():
+        """输出段的动作宏：<名字>_ON() / <名字>_OFF()（用户版式，紧跟在 PIN_ 宏之后）。
+
+        极性取 `init` 列的语义 —— 该列记的是"上电安全态"，对每个有负载的输出脚就等于"关"：
+        OFF 电平 = init，ON 电平 = 1 - init。共阳灯（init=1）得 ON=0，N-MOS 栅极（init=0）得 ON=1。
+        名字取 func 并去掉 `_CTL` 后缀：PIN_HEAT1_CTL -> HEAT1_ON()。
+        """
+        lines = []
+        for row in rows:
+            if not (roles_of(row) & {"out", "pwm"}) or not row["func"]:
+                continue
+            base = re.sub(r"_CTL$", "", row["func"])
+            off = row["init"].strip() or "0"
+            on = "0" if off == "1" else "1"
+            lines.append("#define %s_ON() PIN_%s = %s" % (base, row["func"], on))
+            lines.append("#define %s_OFF() PIN_%s = %s" % (base, row["func"], off))
+        return "\n".join(lines)
+
     return render(tpl, {"IN_MACROS": block({"in"}, width({"in"})),
-                        "OUT_MACROS": block({"out", "pwm"}, width({"out", "pwm"}))})
+                        "OUT_MACROS": block({"out", "pwm"}, width({"out", "pwm"})),
+                        "OUT_ACTIONS": actions()})
 
 
 def render_led(rows, tpl):

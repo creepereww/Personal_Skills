@@ -28,8 +28,8 @@
     },
     "eda": {
       "label": "硬件 / EDA 设计",
-      "why": "立创EDA/EasyEDA 领域；取数走 connector、审查走 design-review、按硬件连接生成 MCU IO 代码走 codegen、元器件采购加购走 bom-purchase；只给做硬件设计的 agent",
-      "skills": ["local-jlceda-design-review", "easyeda-agent-connector", "local-sinocmcu-8bit-codegen", "local-lcsc-bom-purchase"]
+      "why": "立创EDA/EasyEDA 领域；取数走 connector、只读审查走 design-review、建板改板走 board-build、按硬件连接生成 MCU IO 代码走 codegen、元器件采购加购走 bom-purchase；只给做硬件设计的 agent",
+      "skills": ["local-jlceda-design-review", "local-jlceda-board-build", "easyeda-agent-connector", "local-sinocmcu-8bit-codegen", "local-lcsc-bom-purchase"]
     },
     "file-ops": {
       "label": "文件整理",
