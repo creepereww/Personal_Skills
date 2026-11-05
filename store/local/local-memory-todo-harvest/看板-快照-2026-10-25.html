@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>记忆待办归集看板</title>
+<style>
+  :root {
+    --bg:#f6f7f9; --card:#ffffff; --ink:#1f2329; --muted:#8a9099;
+    --line:#e6e8eb; --accent:#2f6fed; --done:#23a06b; --warn:#e8820c;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+  header { padding:20px 24px; background:var(--card); border-bottom:1px solid var(--line); }
+  h1 { font-size:18px; margin:0 0 6px; }
+  .stat { color:var(--muted); font-size:13px; }
+  .stat b { color:var(--ink); }
+  .toolbar { padding:12px 24px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  select, button { font:inherit; padding:6px 12px; border:1px solid var(--line);
+    border-radius:8px; background:var(--card); color:var(--ink); cursor:pointer; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  main { padding:0 24px 40px; max-width:860px; }
+  .project { margin-top:20px; }
+  .project h2 { font-size:15px; margin:0 0 4px; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .project h2 .cnt { font-size:12px; color:var(--muted); font-weight:normal; }
+  .project h2 .prog { font-size:12px; color:var(--done); font-weight:600; }
+  .bar { height:6px; border-radius:99px; background:var(--line); overflow:hidden; margin:0 0 10px; }
+  .bar i { display:block; height:100%; background:linear-gradient(90deg,#3fbf8f,#23a06b); border-radius:99px; }
+  .item { display:flex; gap:12px; align-items:flex-start; background:var(--card);
+    border:1px solid var(--line); border-radius:10px; padding:10px 14px; margin-bottom:8px; }
+  .item.done { opacity:.55; }
+  .item.done .txt-main { text-decoration:line-through; }
+  .box { width:18px; height:18px; margin-top:2px; flex:0 0 auto; cursor:pointer; accent-color:var(--done); }
+  .txt { flex:1; font-size:14px; line-height:1.5; min-width:0; }
+  .meta { margin-top:4px; font-size:12px; color:var(--muted); display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .tag { background:#eef1f5; border-radius:6px; padding:1px 7px; color:#5b6470; }
+  .tag.s-checkbox { background:#e7f0ff; color:#2f6fed; }
+  .tag.s-section { background:#eafaf1; color:#23a06b; }
+  .tag.s-inline { background:#fff3e0; color:#e8820c; }
+  .tag.sec { background:#f3ecf7; color:#7d5b75; }
+  .tag.proj { background:#eef1f5; color:#5b6470; font-weight:600; }
+  .sect-head { margin:26px 0 4px; font-size:15px; font-weight:700; display:flex; align-items:baseline; gap:8px; }
+  .sect-head .cnt { font-size:12px; color:var(--muted); font-weight:normal; }
+  .sect-head.stale { color:var(--warn); }
+  .sect-head.done-sec { color:var(--done); }
+  .alias-panel { margin:0 24px 6px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 16px; }
+  .ap-head { font-size:13px; font-weight:700; margin-bottom:6px; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
+  .ap-tip { font-size:11px; color:var(--muted); font-weight:normal; }
+  .alias-row { display:flex; align-items:center; gap:12px; padding:7px 0; border-top:1px dashed var(--line); flex-wrap:wrap; }
+  .alias-row:first-of-type { border-top:none; }
+  .ar-auto { font-size:12px; color:var(--muted); min-width:170px; }
+  .ar-auto b { color:var(--ink); }
+  .ar-ctrl { display:flex; gap:8px; flex:1; min-width:240px; }
+  .ar-ctrl input { flex:1; min-width:0; font:inherit; font-size:13px; padding:5px 10px; border:1px solid var(--line); border-radius:8px; background:#fffdfa; color:var(--ink); }
+  .ar-ctrl button { font:inherit; font-size:12px; padding:5px 14px; border:1px solid var(--accent); border-radius:8px; background:var(--accent); color:#fff; cursor:pointer; }
+  .ar-ctrl button:disabled { opacity:.5; cursor:default; }
+  .sub-head { font-size:13px; color:#5b6470; margin:12px 0 6px; display:flex; gap:8px; align-items:baseline; }
+  .sub-head .cnt { font-size:11px; color:var(--muted); }
+  .empty { color:var(--muted); padding:40px; text-align:center; }
+  footer { padding:16px 24px; color:var(--muted); font-size:12px; border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+<header>
+  <h1>记忆待办归集看板</h1>
+  <div class="stat" id="stat"></div>
+</header>
+<div class="toolbar">
+  <select id="filter"><option value="__all__">全部项目</option></select>
+  <button class="primary" onclick="location.reload()">刷新</button>
+  <button id="aliasBtn" onclick="openAliasPanel()">备注别名</button>
+  <button onclick="toggleAll(true)">全部完成</button>
+  <button onclick="toggleAll(false)">全部重置</button>
+</div>
+<div class="alias-panel" id="aliasPanel" hidden>
+  <div class="ap-head">项目别名备注<span class="ap-tip">留空 = 用自动名；只存本机 data/aliases.json，不改记忆文件</span></div>
+  <div id="aliasRows"></div>
+</div>
+<main id="list"></main>
+<footer>
+  数据仅来自本机 WorkBuddy 记忆文件，纯本地、不联网。勾选状态存于技能目录 data/judgments.json，
+  与原始记忆文件完全解耦，不回写原始记录。
+</footer>
+<script>
+const TODOS = [{"id": "619ac0f093f49eee", "project": "日常集·生活工作台", "file": "lifedesk-workbench/.workbuddy/memory/2026-10-16.md", "line": 33, "date": "2026-10-16", "text": "P4：用户在真实会话里点「导入 Notion」完成落库；发布上线（当前仅本地 8901 验证，未发布）", "signal": "section", "section": "待办", "source_done": false, "done": false, "auto": "日常集·生活工作台"}, {"id": "65a92a296923136c", "project": "日常集·生活工作台", "file": "lifedesk-workbench/.workbuddy/memory/2026-10-16.md", "line": 34, "date": "2026-10-16", "text": "期盼项：多人协作、Notion 双向同步（用户明确\"现在不做\"）", "signal": "section", "section": "待办", "source_done": false, "done": false, "auto": "日常集·生活工作台"}, {"id": "13b398d9b85bdf77", "project": "日常集·生活工作台", "file": "lifedesk-workbench/.workbuddy/memory/2026-10-16.md", "line": 94, "date": "2026-10-16", "text": "缺「备注」「到点提醒」", "signal": "inline", "section": "", "source_done": false, "done": false, "auto": "日常集·生活工作台"}, {"id": "0588958b4842b1c6", "project": "网盘整理", "file": "2026-09-09-13-46-43/.workbuddy/memory/2026-09-13.md", "line": 287, "date": "2026-09-13", "text": "夸克其他顶层目录盘点（嵌入式合集完整 walk 仍受网络/cookie 波动影响，需分批）", "signal": "section", "section": "仍未完成（按用户已拍板的方向）", "source_done": false, "done": false, "auto": "网盘整理"}, {"id": "5db76625d482f257", "project": "网盘整理", "file": "2026-09-09-13-46-43/.workbuddy/memory/2026-09-13.md", "line": 288, "date": "2026-09-13", "text": "各盘按词表（\\01-照片 \\02-学习 \\03-工作 \\04-影视 \\05-备份 \\06-个人 \\09-安装包 \\99-临时）规范化", "signal": "section", "section": "仍未完成（按用户已拍板的方向）", "source_done": false, "done": false, "auto": "网盘整理"}, {"id": "24a6a5b03a1e324b", "project": "网盘整理", "file": "2026-09-09-13-46-43/.workbuddy/memory/2026-09-13.md", "line": 289, "date": "2026-09-13", "text": "阿里云盘扫码登录（用户仍未扫 https://alistgo.com/tool/aliyundrive/request）", "signal": "section", "section": "仍未完成（按用户已拍板的方向）", "source_done": false, "done": false, "auto": "网盘整理"}, {"id": "4ee9bcc4b9f4b19c", "project": "网盘整理", "file": "2026-09-09-13-46-43/.workbuddy/memory/2026-09-13.md", "line": 290, "date": "2026-09-13", "text": "天翼个人云 13.21 TB 会员到期日确认（需用户查 App）", "signal": "section", "section": "仍未完成（按用户已拍板的方向）", "source_done": false, "done": false, "auto": "网盘整理"}, {"id": "d703581abfeb7764", "project": "网盘整理", "file": "2026-09-09-13-46-43/.workbuddy/memory/2026-09-13.md", "line": 291, "date": "2026-09-13", "text": "百度 /app 292 GB 跨盘搬运（受限速无解，建议就地保留）", "signal": "section", "section": "仍未完成（按用户已拍板的方向）", "source_done": false, "done": false, "auto": "网盘整理"}, {"id": "b8c4c1ec4be52952", "project": "网盘整理", "file": "2026-09-09-13-46-43/.workbuddy/memory/2026-09-20.md", "line": 40, "date": "2026-09-20", "text": "删本地 52 个残留（69.17 GB）— 未做", "signal": "section", "section": "用户本次未选择做的事（保留待办）", "source_done": false, "done": false, "auto": "网盘整理"}, {"id": "9b32d9a28ccf368b", "project": "网盘整理", "file": "2026-09-09-13-46-43/.workbuddy/memory/2026-09-20.md", "line": 41, "date": "2026-09-20", "text": "补下缺的 1 个文件（MentorKeyGen.Tool.V1.4.0.zip，16 MB）— 未做", "signal": "section", "section": "用户本次未选择做的事（保留待办）", "source_done": false, "done": false, "auto": "网盘整理"}, {"id": "b56b247ab64b8437", "project": "网盘整理", "file": "2026-09-09-13-46-43/.workbuddy/memory/2026-09-20.md", "line": 91, "date": "2026-09-20", "text": "方式 A：Windows 安全中心 → 病毒和威胁防护 → 排除项 → 添加", "signal": "section", "section": "6. 给用户的待办（需要管理员权限）", "source_done": false, "done": false, "auto": "网盘整理"}, {"id": "8ebe4a89f0ab3dc1", "project": "网盘整理", "file": "2026-09-09-13-46-43/.workbuddy/memory/2026-09-20.md", "line": 93, "date": "2026-09-20", "text": "方式 B：临时关闭实时保护，我立刻重跑 补传缺失文件.py --apply", "signal": "section", "section": "6. 给用户的待办（需要管理员权限）", "source_done": false, "done": false, "auto": "网盘整理"}, {"id": "45538b64aaa1174d", "project": "网盘整理", "file": "2026-09-09-13-46-43/.workbuddy/memory/2026-09-20.md", "line": 94, "date": "2026-09-20", "text": "文件已下好放在 _tmp补传/MentorKeyGen.Tool.V1.4.0.zip.bin，放行后无需重下", "signal": "section", "section": "6. 给用户的待办（需要管理员权限）", "source_done": false, "done": false, "auto": "网盘整理"}, {"id": "d5a31b5ea9c3bd11", "project": "网盘补传", "file": "2026-09-14-21-51-09/.workbuddy/memory/2026-09-20.md", "line": 40, "date": "2026-09-20", "text": "纯失败项 MentorKeyGen.Tool.V1.4.0.zip 本地文件已不存在，需回百度重下。", "signal": "section", "section": "01:11 自动检查：判定「已传完」并生成 A-D 待办清单", "source_done": false, "done": false, "auto": "网盘补传"}, {"id": "cfbfb4bb447d9a90", "project": "Skills 管理", "file": "2026-09-17-22-52-03/.workbuddy/memory/2026-09-18.md", "line": 57, "date": "2026-09-18", "text": "加 Git 远端（现在只有本地仓库）；剩余 5 个 WorkBuddy skill（html-* 4 个 + neat-freak）待迁；建议做一个 local-skills-hub skill 把\"不得直接改 store\"这条铁律挂到各 agent（否则模型看不到 README，铁律形同虚设）。", "signal": "inline", "section": "", "source_done": false, "done": false, "auto": "Skills 管理"}, {"id": "d6769d555f7f4344", "project": "Skills 管理", "file": "2026-09-17-22-52-03/.workbuddy/memory/2026-09-18.md", "line": 103, "date": "2026-09-18", "text": "加 Git 远端；check-update.ps1（现在有 6 个远程 skill 了，值得写）；剩余 4 个 html-* skill 迁移；QClaw 挑几个纳入；opencode 实测确认。", "signal": "inline", "section": "", "source_done": false, "done": false, "auto": "Skills 管理"}, {"id": "d27f00d2af05011c", "project": "闲鱼", "file": "2026-09-30-01-50-30/.workbuddy/memory/2026-10-01.md", "line": 136, "date": "2026-10-01", "text": "等限流恢复后跑 check_alive.py（大 --delay），把 341 条「信用未核实」补齐并应用信用过滤", "signal": "section", "section": "待办", "source_done": false, "done": false, "auto": "闲鱼"}, {"id": "afe5f8ea85b4e4fe", "project": "闲鱼", "file": "2026-09-30-01-50-30/.workbuddy/memory/2026-10-01.md", "line": 137, "date": "2026-10-01", "text": "上一轮的「台铃三轮车 ¥1052」用户还没答复要不要剔", "signal": "section", "section": "待办", "source_done": false, "done": false, "auto": "闲鱼"}, {"id": "4603f65ecc185e3b", "project": "human-atlas", "file": "2026-10-11-14-41-59/.workbuddy/memory/2026-10-14.md", "line": 80, "date": "2026-10-14", "text": "路线 B 范围待用户定（躯干肌不可得；男性肌肉是否引入；许可是否降到 open-sharealike）", "signal": "section", "section": "待办", "source_done": false, "done": false, "auto": "human-atlas"}, {"id": "696a4a8c0da45d2c", "project": "human-atlas", "file": "2026-10-11-14-41-59/.workbuddy/memory/2026-10-14.md", "line": 81, "date": "2026-10-14", "text": "app/registration.tsx:29 图例文字写死 \"TCIA 003\"，在 composed 视图下可能与实际 transform 不符（既有文案问题，本轮未动）", "signal": "section", "section": "待办", "source_done": false, "done": false, "auto": "human-atlas"}];
+const SERVER = false;
+const STALE_DAYS = 14;
+const DAY_MS = 86400000;
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function isStale(t){
+  return !t.done && !!t.date && (Date.now() - new Date(t.date + 'T00:00:00').getTime()) > STALE_DAYS * DAY_MS;
+}
+function signalLabel(s){
+  return s === 'checkbox' ? 'checkbox' : (s === 'section' ? '章节条目' : '行内待办');
+}
+function groupBy(list, keyFn){
+  const m = {};
+  list.forEach(t => { const k = keyFn(t); (m[k] = m[k] || []).push(t); });
+  return m;
+}
+function itemEl(t, showProject){
+  const el = document.createElement('div');
+  el.className = 'item' + (t.done ? ' done' : '');
+  const cb = document.createElement('input');
+  cb.type = 'checkbox'; cb.className = 'box'; cb.checked = t.done;
+  cb.onchange = () => setDone(t.id, cb.checked);
+  const txt = document.createElement('div'); txt.className = 'txt';
+  const main = document.createElement('div'); main.className = 'txt-main';
+  main.textContent = t.text; txt.appendChild(main);
+  const meta = document.createElement('div'); meta.className = 'meta';
+  let html = '<span class="tag s-' + t.signal + '">' + signalLabel(t.signal) + '</span>';
+  if (t.section) html += '<span class="tag sec">' + escapeHtml(t.section) + '</span>';
+  if (showProject) html += '<span class="tag proj">' + escapeHtml(t.project) + '</span>';
+  if (t.date) html += '<span>📅 ' + escapeHtml(t.date) + '</span>';
+  html += '<span>📄 ' + escapeHtml(t.file) + ':' + t.line + '</span>';
+  meta.innerHTML = html;
+  txt.appendChild(meta);
+  el.appendChild(cb); el.appendChild(txt);
+  return el;
+}
+function progressBlock(name, items){
+  const done = items.filter(t => t.done).length;
+  const pct = items.length ? Math.round(done / items.length * 100) : 0;
+  const h = document.createElement('h2');
+  h.innerHTML = escapeHtml(name) +
+    ' <span class="cnt">' + items.filter(t => !t.done).length + ' 条待办</span>' +
+    ' <span class="prog">' + done + '/' + items.length + ' · ' + pct + '%</span>';
+  const bar = document.createElement('div'); bar.className = 'bar';
+  bar.innerHTML = '<i style="width:' + pct + '%"></i>';
+  return [h, bar];
+}
+function render(filter){
+  const list = document.getElementById('list');
+  list.innerHTML = '';
+  const scoped = filter === '__all__' ? TODOS : TODOS.filter(t => t.project === filter);
+  const open = scoped.filter(t => !t.done);
+  const doneItems = scoped.filter(t => t.done);
+  const stale = open.filter(isStale);
+  const recent = open.filter(t => !isStale(t));
+
+  // ① 各项目：近期未完成（含进度）
+  const byProj = groupBy(recent, t => t.project);
+  Object.keys(byProj).sort().forEach(p => {
+    const sec = document.createElement('div'); sec.className = 'project';
+    progressBlock(p, scoped.filter(t => t.project === p)).forEach(el => sec.appendChild(el));
+    byProj[p].forEach(t => sec.appendChild(itemEl(t, false)));
+    list.appendChild(sec);
+  });
+
+  // ② 历史遗留 · 超 14 天未完成
+  if (stale.length) {
+    const head = document.createElement('div');
+    head.className = 'sect-head stale';
+    head.innerHTML = '历史遗留 · 超 ' + STALE_DAYS + ' 天未完成 <span class="cnt">' + stale.length + ' 条</span>';
+    list.appendChild(head);
+    const staleByProj = groupBy(stale, t => t.project);
+    Object.keys(staleByProj).sort().forEach(p => {
+      const sub = document.createElement('div');
+      sub.className = 'sub-head';
+      sub.innerHTML = escapeHtml(p) + ' · 遗留 <span class="cnt">' + staleByProj[p].length + ' 条</span>';
+      list.appendChild(sub);
+      staleByProj[p].forEach(t => list.appendChild(itemEl(t, true)));
+    });
+  }
+
+  // ③ 已完成
+  if (doneItems.length) {
+    const head = document.createElement('div');
+    head.className = 'sect-head done-sec';
+    head.innerHTML = '已完成 <span class="cnt">' + doneItems.length + ' 条</span>';
+    list.appendChild(head);
+    const doneByProj = groupBy(doneItems, t => t.project);
+    Object.keys(doneByProj).sort().forEach(p => {
+      const sub = document.createElement('div');
+      sub.className = 'sub-head';
+      sub.innerHTML = escapeHtml(p) + ' <span class="cnt">' + doneByProj[p].length + ' 条</span>';
+      list.appendChild(sub);
+      doneByProj[p].forEach(t => list.appendChild(itemEl(t, true)));
+    });
+  }
+
+  if (!scoped.length) {
+    list.innerHTML = '<div class="empty">这个项目下还没有待办信号 🎉</div>';
+  }
+  document.getElementById('stat').innerHTML =
+    '共 <b>' + scoped.length + '</b> 条 · 待处理 <b>' + open.length + '</b>（其中遗留 <b>' + stale.length + '</b>）· 已完成 <b>' + doneItems.length + '</b>';
+}
+function setDone(id, done){
+  const t = TODOS.find(x => x.id === id);
+  if (t) t.done = done;
+  render(document.getElementById('filter').value);
+  if (SERVER) {
+    fetch('/toggle', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({id:id, done:done})}).catch(()=>{});
+  } else {
+    try { localStorage.setItem('mth_' + id, done ? '1' : '0'); } catch(e) {}
+  }
+}
+function toggleAll(state){
+  TODOS.forEach(t => setDone(t.id, state));
+}
+// ── 项目别名备注（仅实时服务模式；静态快照只读）──
+function openAliasPanel(){
+  if (!SERVER) { alert('静态快照不支持备注别名，请用实时看板（python harvest.py）'); return; }
+  const panel = document.getElementById('aliasPanel');
+  const rows = document.getElementById('aliasRows');
+  const seen = {};
+  TODOS.forEach(t => { seen[t.auto] = t.project; });
+  rows.innerHTML = '';
+  Object.keys(seen).sort().forEach(auto => {
+    const row = document.createElement('div'); row.className = 'alias-row';
+    const info = document.createElement('div'); info.className = 'ar-auto';
+    info.innerHTML = '自动名：<b>' + escapeHtml(auto) + '</b>';
+    const ctrl = document.createElement('div'); ctrl.className = 'ar-ctrl';
+    const input = document.createElement('input');
+    input.type = 'text'; input.maxLength = 24; input.placeholder = '留空 = 用自动名';
+    input.value = seen[auto] === auto ? '' : seen[auto];
+    const btn = document.createElement('button'); btn.textContent = '保存';
+    btn.onclick = () => {
+      btn.disabled = true; btn.textContent = '保存中';
+      fetch('/alias', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({project: auto, alias: input.value})})
+        .then(r => r.json()).then(res => { if (res && res.ok) location.reload(); else throw new Error(res && res.error); })
+        .catch(() => { btn.disabled = false; btn.textContent = '保存'; });
+    };
+    ctrl.appendChild(input); ctrl.appendChild(btn);
+    row.appendChild(info); row.appendChild(ctrl);
+    rows.appendChild(row);
+  });
+  panel.hidden = !panel.hidden;
+}
+if (!SERVER) {
+  TODOS.forEach(t => { try { const v = localStorage.getItem('mth_' + t.id); if (v !== null) t.done = v === '1'; } catch(e) {} });
+}
+const f = document.getElementById('filter');
+[...new Set(TODOS.map(t => t.project))].sort().forEach(p => {
+  const o = document.createElement('option'); o.value = p; o.textContent = p; f.appendChild(o);
+});
+f.onchange = () => render(f.value);
+render('__all__');
+</script>
+</body>
+</html>
