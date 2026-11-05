@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
 description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时；「skills 更新」「同步技能库」「拉远端同步」等更新仓库的意图也归它管，附 qoder 等 agent 的 AGENTS.md 自动触发提示词。含授权规则：完善中（v0.x）可直接改并回报，已完善（v1.0+）必须先确认或写 proposals/。
-version: v0.19
+version: v0.20
 ---
 
 # Skills Hub
@@ -88,8 +88,10 @@ cd /mnt/c/Users/<你>/.skills && ln -s "$PWD/_active/opencode" ~/.config/opencod
 
 - `~/.config/opencode/skills` 必须**不存在**（`ln -s` 遇真目录不会替换，会把链接建到目录里面）
 - 建完**新开** opencode 会话才生效（skill 列表是会话启动时快照的）
-- 本机若另有 `wsl2win` + `links.conf`（`oc-skills` 行），跑 `wsl2win oc-skills` 等效 —— 但那是
-  **个人设施、不在本仓库**，换机不用带（`links.conf` 混着别的项目路径，属跨项目配置，归 dotfiles 管）
+- **Windows 原生也装了 opencode**：视图模式下 `link.ps1` 检测到 `~/.config/opencode` 在，会自动把
+  `~/.config/opencode/skills` 接成指向视图的 junction —— 原生版与 WSL 版读同一份，无需额外操作
+- 若装了 `wsl2win`（个人设施，在 `Personal_Dotfiles` 仓库，`wsl/install.sh` 一键装），跑
+  `wsl2win oc-skills` 等效 —— 它不在本仓库，换机不用带（`links.conf` 混着别的项目路径，归 dotfiles 管）
 
 ## 🚫 修改 skill 的授权规则
 

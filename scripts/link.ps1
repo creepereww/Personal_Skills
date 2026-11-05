@@ -289,6 +289,34 @@ foreach ($prop in $cfg.clients.PSObject.Properties) {
             if (-not $DryRun) { New-Item -ItemType Directory -Path $mountRoot -Force | Out-Null }
             $report += ("MKDIR    {0,-10} 视图目录 {1}" -f $name, $mountRoot)
         }
+        # Windows 原生版也装了（skills 的父目录在）→ 顺手把整个视图接过去，让 Windows 版与
+        # WSL 版读同一份内容；没装则什么都不做。一条 junction 指整个视图，不是 per-skill。
+        $agentParent = Split-Path -Parent $dir
+        if (Test-Path $agentParent) {
+            if (Test-Path $dir) {
+                $it = Get-Item $dir -Force
+                $isLink = (($it.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)
+                $cur = $null
+                if ($isLink) { try { $cur = $it.LinkTarget } catch { $cur = $null } }
+                if ($isLink -and $cur -and ($cur.TrimEnd('\') -eq $mountRoot.TrimEnd('\'))) {
+                    $report += ("LINK     {0,-10} Windows 原生已接入视图（unchanged）" -f $name)
+                }
+                elseif ($isLink) {
+                    if (-not $DryRun) {
+                        Remove-JunctionOnly $dir
+                        New-Item -ItemType Junction -Path $dir -Target $mountRoot | Out-Null
+                    }
+                    $report += ("LINK     {0,-10} Windows 原生接线指向别处，已重指视图" -f $name)
+                }
+                else {
+                    $report += ("CONFLICT {0,-10} {1} 是真实目录，未改动 —— 清空/移走后重跑即可接入视图" -f $name, $dir)
+                }
+            }
+            else {
+                if (-not $DryRun) { New-Item -ItemType Junction -Path $dir -Target $mountRoot | Out-Null }
+                $report += ("LINK     {0,-10} Windows 原生已装，{1} -> 视图" -f $name, $dir)
+            }
+        }
     }
     elseif (-not (Test-Path $dir)) {
         if (-not $DryRun) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
@@ -366,7 +394,7 @@ foreach ($prop in $cfg.clients.PSObject.Properties) {
     $report += ("DONE     {0,-10} created={1} rebuilt={2} unchanged={3} pruned={4} conflict={5}" -f $name, $created, $rebuilt, $ok, $pruned, $conflict)
     if ($viewMode) {
         $report += ("         视图模式：junction 建在 {0}" -f $mountRoot)
-        $report += ("         agent 侧（{0}）需一条软链/junction 指向该视图 —— link.ps1 够不着的位置（如 WSL）由用户自建" -f $dir)
+        $report += ("         agent 侧（{0}）：Windows 原生若已装会自动接；WSL 等够不着的位置需自建一条软链指向视图" -f $dir)
     }
 }
 
