@@ -1,11 +1,11 @@
 {
   "_comment": "挂载路由表。clients 是各 agent 的 skills 目录；mode=junction 走目录联接，mode=extraDirs 走原生配置（不建联接）。clients.<name>.view_dir 可选：写了即进入「视图模式」——junction 建到仓库里的视图目录（而非 agent 的 skills 目录），供跑在 junction 够不着处（如 WSL）的 agent 由使用方在 agent 侧建一条软链接入；该 client 自动跳过安装检测（视图是本机资产，与 Windows 侧装没装无关）。",
-  "_version": 5,
+  "_version": 6,
   "_detect_doc": "每个 client 可写 detect 控制「这台机器装没装」的判定。不写 detect -> 默认看 skills 目录的父目录在不在（装了 agent 就会建自己的配置根）。detect=[] -> 不探测、永远视为已装。detect_any=true -> 多路径任一存在即可。装了才挂，没装跳过，除非跑 link.ps1 时加 -Force。",
 
   "_machine_doc": "store/machine/<主机名>/ 下每台机器一份档案，link.ps1 只挂与本机 %COMPUTERNAME% 匹配（大小写不敏感）的那个。host_aliases 把某个主机名指向另一个 machine 目录：过渡期（主机名改了没重启）用完请删；若因主机名含下划线等目录名非法字符而长期需要，则不要删。",
 
-  "_groups_doc": "挂载怎么决定：① 技能按用途归入 groups 的某个组；② 每个 agent 用 clients.<name>.groups 声明画像（要哪些组，[\"*\"]=全部组），它只挂画像所含组里的技能；③ skills 段可对单个技能做精确覆盖（优先级最高）；④ 未归组的技能回退 defaults.clients。画像支持否定项：「[\"*\"] + \"!组名\"」= 全部组但排除这些组。运行期临时改画像用 link.ps1 -OverrideGroups \"<client>=<组1,组2|*|!组>\"（不写盘，下次普通 link 即还原）。machine 档不归组，按主机名单独挂给所有 client。",
+  "_groups_doc": "挂载怎么决定：① 技能按用途归入 groups 的某个组；② 每个 agent 用 clients.<name>.groups 声明画像（要哪些组，[\"*\"]=全部组），它只挂画像所含组里的技能；③ skills 段可对单个技能做精确覆盖（优先级最高）；④ 未归组的技能回退 defaults.clients。画像支持否定项：「[\"*\"] + \"!组名\"」= 全部组但排除这些组。⑤ clients.<name>.exclude_skills 声明该 agent 排除哪些单个技能（组要、但组里个别技能对它无用）—— 优先级仅次于 ③，machine 档也受它约束。运行期临时改画像用 link.ps1 -OverrideGroups \"<client>=<组1,组2|*|!组>\"（不写盘，下次普通 link 即还原）。machine 档不归组，按主机名单独挂给所有 client（除非被 exclude_skills 排除）。",
 
   "host_aliases": {
     "_comment": "把某个主机名指向一个 machine 目录。两种用途：① 主机名改了但还没重启的过渡期（用完删）；② 主机名含 skill 目录命名正则禁止的字符（如 `_`），目录名只能改用 `-`，此时是长期设施、别删。",
@@ -95,12 +95,15 @@
       "view_dir": "_active/opencode",
       "mode": "junction",
       "enabled": true,
-      "groups": ["core", "skill-dev", "eda", "cloud"],
+      "groups": ["core", "eda"],
+      "_groups_note": "编程向（用户指定 2026-11-05）：只要 core 里的干活方式 + EDA 里的代码生成链路，其余整组不挂（skill-dev 做 skill 时才用、cloud 网盘接入一次性）",
+      "exclude_skills": ["local-skills-hub", "local-memory-map", "local-windows-shell-conventions", "local-jlceda-design-review", "local-jlceda-board-build", "local-lcsc-bom-purchase", "wgc-work1-px"],
+      "_exclude_note": "留下的 4 个：local-script-first、local-plan-first-superpowers（干活方式）、local-sinocmcu-8bit-codegen（按网表生成 MCU 代码）、easyeda-agent-connector（读网表要用）。排掉的：仓库维护规则/资产地图/Windows 路径约定（WSL 里是噪音）、画板布线/硬件审查/BOM 采购（不是写代码）、本机 machine 档（Windows 侧事实）",
       "detect": ["%USERPROFILE%\\.config\\opencode", "%APPDATA%\\npm\\node_modules\\opencode-ai", "%USERPROFILE%\\AppData\\Local\\Programs\\opencode"],
       "detect_any": true,
       "_detect_note": "skills 目录原生不存在（父目录判据会误判），故显式给出配置目录/npm 包/winget 三种安装位置",
-      "_view_note": "视图模式：junction 由 link.ps1 建在 _active/opencode/，WSL 侧靠 wsl2win oc-skills 软链接入；Windows 侧装没装 opencode 都建视图，detect 不再作为跳过条件",
-      "note": "★ 本机实际装在 WSL 里（不是 Windows 原生），职责是嵌入式编程 → 下面这些 Windows 路径一条都不会命中（视图模式照样建，不报 NOTFOUND）。要给 WSL 里的 opencode 挂技能：链接流程自动维护 _active/opencode/ 视图，WSL 里 wsl2win oc-skills 一条软链即生效，详见 store/machine/wgc-work1-px。单文件可执行程序、内置 skill 编译在里面不可编辑；自建 skill 另认项目 .opencode/skills/、兼容位 .claude/skills/ + .agents/skills/、opencode.json(c) 的 skills 数组指定任意路径 —— 详见 local-memory-map 表①"
+      "_view_note": "视图模式：junction 由 link.ps1 建在 _active/opencode/（只建画像内那 4 个）；WSL 侧由 opencode.jsonc 的 skills 数组直指该视图（v2 起支持绝对路径，见 local-memory-map 表①），v1 时代则是 wsl2win oc-skills 软链；Windows 侧装没装 opencode 都建视图，detect 不再作为跳过条件",
+      "note": "★ 本机实际装在 WSL 里（不是 Windows 原生），职责是编程（嵌入式为主）—— 所以画像只留编程必需，别再加「全组」，噪音会挤占上下文。下面这些 Windows 路径一条都不会命中（视图模式照样建，不报 NOTFOUND）。挂载流程：link.ps1 维护 _active/opencode/ 视图 → WSL 里 opencode.jsonc 的 skills 指过去，详见 store/machine/wgc-work1-px。单文件可执行程序、内置 skill 编译在里面不可编辑；自建 skill 另认项目 .opencode/skills/、兼容位 .claude/skills/ + .agents/skills/ —— 详见 local-memory-map 表①"
     },
     "doubao": {
       "dir": "%USERPROFILE%\\DoubaoWork\\skills",

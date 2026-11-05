@@ -12,7 +12,8 @@
 - **v1 备选**：WSL `~/.config/opencode/skills` 软链 → 视图（两种方式别同时用，会重复注册）。
 - **软链设施（v1 备选）**：WSL `~/bin/wsl2win` + `links.conf`，条目 `oc-skills` 已有；`wsl2win oc-skills` 即建软链（wsl.exe 被沙箱黑名单拦，我无法代建 Linux 软链；UNC 也建不了）。v2 配置直挂后这一步可跳过。
 - **wsl2win / links.conf 不进仓库（2026-11-05 定）**：它们跨项目个人设施（links.conf 还混着 PXD-YS56 等无关路径），搬进仓库会带本机绝对路径、换机即失效。仓库里的**通用自举接法**在 `local-skills-hub`「视图模式」节（v0.19）：`cd /mnt/c/Users/<你>/.skills && ln -s "$PWD/_active/opencode" ~/.config/opencode/skills`（先跑 link.ps1 建视图；`$PWD` 免硬编码用户名）。
-- **视图刷新（2026-11-05 起自动化）**：link.ps1 视图模式自动维护 —— routing.json 的 opencode 条目写 `view_dir=_active/opencode`，跑 link.ps1 即按画像建/摘/校 junction（当前 14 个），新增 skill 不用再手工刷视图；WSL 侧软链始终不用动。
+- **视图刷新（2026-11-05 起自动化）**：link.ps1 视图模式自动维护 —— routing.json 的 opencode 条目写 `view_dir=_active/opencode`，跑 link.ps1 即按画像建/摘/校 junction，新增 skill 不用再手工刷视图；WSL 侧配置不用动。
+- **画像只留编程必需（2026-11-05 用户指定：这台 opencode 主要用来编程）**：link.ps1 新增 `clients.<name>.exclude_skills`（client 级单技能排除，优先级仅次于 skills 段）。opencode 现状 = `groups:["core","eda"]` 减 7 个排除项 → **只挂 4 个**：`local-script-first`、`local-plan-first-superpowers`（干活方式）、`local-sinocmcu-8bit-codegen`（网表→MCU 代码）、`easyeda-agent-connector`（读网表）。排掉：skills-hub / memory-map / windows-shell-conventions（仓库与环境元知识）、design-review / board-build / bom-purchase（画板采购非写代码）、machine 档。
 - **没装 WSL 的电脑**：links.conf 在 WSL 的 home（不在仓库），不同步；视图目录被 gitignore，也不同步。那边只有 routing.json 的 opencode 画像会到，但 link.ps1 视图模式照样建视图（无害空目录），装 opencode 后自建软链即可。
 - **穿透验证只能靠 WSL 内部**：WSL 软链在 `\\wsl.localhost\` 下不可见（9P 不解析），Windows 侧代验不了。
 

@@ -178,10 +178,26 @@ if ($cfg.PSObject.Properties['defaults'] -and $cfg.defaults.PSObject.Properties[
     $defaultClients = @($cfg.defaults.clients)
 }
 
+# client 级排除：clients.<name>.exclude_skills = ["某技能", ...]
+# 场景：「这个组我要，但组里个别技能对这台 agent 是噪音」。比砍整组精确，
+# 也比在 skills 段给每个要排的技能列全 client 白名单好维护（一处声明，不影响别人）。
+# 优先级：skills 段单点例外 > exclude_skills > 组画像 > defaults。
+$clientExclude = @{}
+foreach ($prop in $cfg.clients.PSObject.Properties) {
+    if ($prop.Name.StartsWith('_')) { continue }
+    if ($prop.Value.PSObject.Properties['exclude_skills']) {
+        $clientExclude[$prop.Name] = @($prop.Value.exclude_skills | Where-Object { $_ })
+    }
+}
+
 # 单个技能是否应挂给某个 client（三级优先级见上）
 function Test-ShouldMount($skillName, $kind, $clientName) {
     if ($skillClients.ContainsKey($skillName)) {
         return ($clientName -in $skillClients[$skillName])
+    }
+    # client 级排除：即使在画像内的组、即使是 machine 档，声明排除了就不挂
+    if ($clientExclude.ContainsKey($clientName) -and ($skillName -in $clientExclude[$clientName])) {
+        return $false
     }
     if ($kind -eq "machine") { return $true }
     if ($skillGroup.ContainsKey($skillName)) {
@@ -214,6 +230,9 @@ if ($overrideSel.Count -gt 0) {
 }
 if ($skillClients.Count -gt 0) {
     $report += "per-skill 例外: " + (($skillClients.Keys | ForEach-Object { $_ + " -> [" + ($skillClients[$_] -join ",") + "]" }) -join "; ")
+}
+if ($clientExclude.Count -gt 0) {
+    $report += "client 排除: " + (($clientExclude.Keys | ForEach-Object { $_ + " 排除[" + ($clientExclude[$_] -join ",") + "]" }) -join "; ")
 }
 if ($skipped.Count -gt 0) {
     $report += "跳过（无 SKILL.md，不算 skill）: " + ($skipped -join ", ")
@@ -354,7 +373,7 @@ foreach ($prop in $cfg.clients.PSObject.Properties) {
                     if ($t2 -and $t2.StartsWith((Join-Path $root "store"), [StringComparison]::OrdinalIgnoreCase)) {
                         if (-not $DryRun) { Remove-JunctionOnly $link }
                         $pruned++
-                        $report += ("UNMOUNT  {0,-10} {1}（不在该 client 画像内）" -f $name, $e.Name)
+                        $report += ("UNMOUNT  {0,-10} {1}（不在该 client 画像内 / 被 exclude_skills 排除）" -f $name, $e.Name)
                     }
                 }
             }

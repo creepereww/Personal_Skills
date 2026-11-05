@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
-description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时；「skills 更新」「同步技能库」「拉远端同步」等更新仓库的意图也归它管，附 qoder 等 agent 的 AGENTS.md 自动触发提示词。含授权规则：完善中（v0.x）可直接改并回报，已完善（v1.0+）必须先确认或写 proposals/。
-version: v0.21
+description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时；「skills 更新」「同步技能库」「拉远端同步」等更新仓库的意图也归它管，附 qoder 等 agent 的 AGENTS.md 自动触发提示词。挂载按 groups 画像，组内个别技能不要时用 clients.exclude_skills 排除（给职能单一的 agent 减噪）。含授权规则：完善中（v0.x）可直接改并回报，已完善（v1.0+）必须先确认或写 proposals/。
+version: v0.22
 ---
 
 # Skills Hub
@@ -255,9 +255,25 @@ pwsh ~/.skills/scripts/install-hook.ps1 -Check  # 只校验在不在位，不改
 }
 ```
 
-**挂载决策三级优先级**（从高到低）：`skills` 段单点例外 > `groups` 分组 > `defaults.clients` 兜底（未归组的技能）。**machine 档不归组**，按主机名匹配后挂给所有 client。
+**挂载决策优先级**（从高到低）：`skills` 段单点例外 > `clients.<name>.exclude_skills` > `groups` 分组 > `defaults.clients` 兜底（未归组的技能）。**machine 档不归组**，按主机名匹配后挂给所有 client（但被 `exclude_skills` 点名时照样排掉）。
 
 `link.ps1` 按画像挂载：画像不含该技能所在组就**不挂**，已经挂过的会顺手摘掉（输出里显示 `UNMOUNT`）。
+
+### 组要、但组里个别技能是噪音 → `exclude_skills`
+
+画像只能**整组**取舍，碰上「这组大半有用、个别没用」就尴尬 —— 例如 opencode 只做编程：`core` 里的
+仓库维护规则 / 资产地图 / Windows 路径约定对它全是噪音，但 `core` 里的「先写计划、先写脚本」它又要。两种解法：
+
+- ❌ 在 `skills` 段给每个要排的技能写 client **白名单** —— 得把其余 5 个 agent 全列一遍，将来新增 agent 必漏
+- ✅ `clients.<name>.exclude_skills: ["某技能", ...]` —— 一处声明，只影响这一个 agent
+
+```json
+"opencode": { "groups": ["core", "eda"],
+  "exclude_skills": ["local-skills-hub", "local-jlceda-design-review", "wgc-work1-px", "..."] }
+```
+
+**判据**：这个 agent 的职责是什么？只留**它真要干活时用得上**的，别为了「反正不占地方」全挂 ——
+每个技能都占上下文，噪音会稀释它对本职工作的注意力。
 
 ### 画像的两种写法，以及"临时全挂"
 
