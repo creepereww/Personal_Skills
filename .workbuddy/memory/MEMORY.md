@@ -19,14 +19,25 @@
 
 # Personal_Dotfiles 仓库（2026-11-05 立）
 
-- **位置**：本地 `C:/Users/cgw06/.dotfiles`，远端 `creepereww/Personal_Dotfiles`（private，master，`90254b7`）。
+- **位置**：本地 `C:/Users/cgw06/.dotfiles`，远端 `creepereww/Personal_Dotfiles`（private，master，`e0783ca`），**同时镜像到 OneDrive 裸库**（见下）。
 - **为什么单开**：wsl2win 是跨项目工具、links.conf 全是本机绝对路径 —— 混进 skills 仓库会跑到别的机器给出错误信息。
 - **WSL 侧**：`wsl/bin/wsl2win`（13KB 工具：真身留 Windows、WSL 建软链）、`wsl/bin/fix-perm.sh`、`wsl/install.sh`（~/bin 改软链到仓库 + links.conf 迁到 `~/.config/wsl2win/`）、`wsl/links.conf.example`（脱敏模板）。
-- **Windows 侧（2026-11-05 加，用户问「Windows 需要管 dotfiles 吗」引出）**：只收三样手写资产 ——
+- **Windows 侧（2026-11-05 加，用户问「Windows 需要管 dotfiles 吗」引出）**：只收手写资产 ——
   `win/vscode/settings.json`（554 行）、`win/vscode/keybindings.json`（89 行，含自制续行符宏）、
-  `win/gitconfig.template`（`{{EDITOR}}` 由脚本探测替换）+ `extensions.txt`（51 个扩展，`cgw06.*` 两个是自制、市场装不回）。
-  `win/install.ps1`：默认「仓库→本机」（备份 `*.bak-<时间戳>` + SHA256 校验），`-Push`「本机→仓库」，`-Extensions` 重导清单。
+  `win/gitconfig.template`（`{{EDITOR}}` 由脚本探测替换）。
+  `win/install.ps1`：默认「仓库→本机」（备份 `*.bak-<时间戳>` + SHA256 校验），`-Push`「本机→仓库」，`-Extensions` 打包安装自制扩展。
   **不收**：注册表类（Everything/Quicker/Watt）、ssh key/token、浏览器数据、各 agent 配置（归本仓库）。
+- **扩展策略（2026-11-05 用户指定，改过一次）**：市场扩展**不入库**（VS Code Settings Sync 会装回，清单必然滞后）；
+  只收自制扩展源码 `win/vscode/extensions/cgw06.{macro-backslash,opencode-ref}/`（纯 JS 无依赖，`-Extensions`
+  走 `npx @vscode/vsce package` → `code --install-extension`，没 node 时退化为直接铺扩展目录）。
+- **嘉立创 EDA 扩展（2026-11-05 加）**：官方不做扩展跨设备分发（`isOnlineSync` 全 false），但存 `.eext` 会过期 →
+  `win/jlceda/` 只收「扩展清单.md/.json + 下载扩展.py」（从 ext.lceda.cn 现拉最新版），包本体不入库。
+  日常副本在 `OneDrive\工作\嘉立创\`，由 `install.ps1` 双向同步（文件对 2 → 5 对）。
+  18 个扩展里 `EDA Agent Connector`（zhoushoujian）是 easyeda-agent 的连接器，必须勾「外部交互」权限。
+- **OneDrive 镜像（2026-11-05 加）**：`C:\Users\cgw06\OneDrive\git\Personal_Dotfiles.git` 裸库（约 140KB），
+  `origin` 挂了**两个 push 地址**（`git remote set-url --add --push`），一条 `git push` 同时推 GitHub + OneDrive。
+  `--add --push` 是追加不是覆盖，两个都要加否则只推 OneDrive。裸库而非工作副本：避免两份文件漂移；
+  代价是 OneDrive 网页版看不到明文。**别双机同推一个裸库**（OneDrive 会生成冲突副本，git 不认）。
 - **Windows dotfiles 三个坑（已写进 dotfiles README）**：① 本机 `$env:HOME=D:\AppData\Roaming\SPB_Data` 而 `USERPROFILE=C:\Users\cgw06`，git 读 HOME、VS Code 读 `%APPDATA%`；`$env:HOME` 还带双反斜杠，Join-Path 前必须折叠。② 单文件不能 junction、跨盘 hardlink 不行、symlink 要管理员 → 只能「仓库当源+脚本复制」，不做自动同步。③ 路径写死用户名/安装位置，换机即废。
 - **关键设计**：wsl2win 用 `readlink -f` 定位自身找 links.conf，软链后看到的是仓库目录（仓库不放本机路径）→ 配置必须走 `~/.config/wsl2win/links.conf` 兜底。`.gitattributes` 对 `.sh`、`win/` 下 json/template/ps1、`*.md`、`*.txt` 全锁 LF（本机 autocrlf=true，否则检出 CRLF → WSL bad interpreter / 整文件 diff）。
 - **本机 WSL 侧尚未装**：wsl.exe 被沙箱黑名单拦，install.sh 需用户自己在 WSL 跑；跑之前一切照旧。Windows 侧已实跑验证（备份在 `*.bak-20261105-120515`）。
