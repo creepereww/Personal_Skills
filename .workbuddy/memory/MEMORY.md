@@ -10,5 +10,6 @@
 
 - **方案：两级链接**。WSL `~/.config/opencode/skills` 软链 → Windows `_active/opencode/`（junction 视图×13）→ store 实体。不能直链 store：opencode 只扫 skills/<name>/SKILL.md 一层（官方 docs 确认，不递归）。
 - **软链用现成设施**：WSL `~/bin/wsl2win` + `links.conf`，条目 `oc-skills` 已加；用户在 WSL 跑 `wsl2win oc-skills` 即生效（wsl.exe 被沙箱黑名单拦，我无法代建 Linux 软链；UNC 也建不了）。
-- **视图刷新**：目前手工同步 `_active/opencode/` 与 routing.json 的 opencode 画像（core5+skill-dev2+eda4+cloud1+machine 档）；自动化并入 link.ps1 是已提议未确认项。
+- **视图刷新（2026-11-05 起自动化）**：link.ps1 视图模式自动维护 —— routing.json 的 opencode 条目写 `view_dir=_active/opencode`，跑 link.ps1 即按画像建/摘/校 junction（当前 14 个），新增 skill 不用再手工刷视图；WSL 侧软链始终不用动。
+- **没装 WSL 的电脑**：links.conf 在 WSL 的 home（不在仓库），不同步；视图目录被 gitignore，也不同步。那边只有 routing.json 的 opencode 画像会到，但 link.ps1 视图模式照样建视图（无害空目录），装 opencode 后自建软链即可。
 - **穿透验证只能靠 WSL 内部**：WSL 软链在 `\\wsl.localhost\` 下不可见（9P 不解析），Windows 侧代验不了。

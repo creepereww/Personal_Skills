@@ -258,9 +258,22 @@ foreach ($prop in $cfg.clients.PSObject.Properties) {
         continue
     }
 
-    # 存在性判定：这台机器没装这个 agent 就不为它建目录
+    $dir = Get-ExpandedPath $def.dir
+
+    # 视图模式（view_dir）：junction 不建到 agent 的 skills 目录，而是建到仓库里的
+    # 视图目录（_active/<client>/），再由使用方在 agent 侧建一条软链/junction 指过来。
+    # 用途：agent 跑在 Windows junction 够不着的位置（如 WSL 里的 opencode）——
+    # 视图是仓库本机资产，与「Windows 侧装没装这个 agent」无关，故跳过安装检测。
+    $viewMode = $false
+    $mountRoot = $dir
+    if ($def.PSObject.Properties['view_dir'] -and $def.view_dir) {
+        $viewMode = $true
+        $mountRoot = Join-Path $root $def.view_dir
+    }
+
+    # 存在性判定：这台机器没装这个 agent 就不为它建目录（视图模式除外，见上）
     $info = $plan.Clients | Where-Object { $_.Name -eq $name } | Select-Object -First 1
-    if (-not $info.Installed) {
+    if (-not $viewMode -and -not $info.Installed) {
         if ($Force) {
             $report += ("FORCE    {0,-10} 未检测到安装，但 -Force 指定照挂（{1}）" -f $name, $info.InstallReason)
         }
@@ -271,8 +284,13 @@ foreach ($prop in $cfg.clients.PSObject.Properties) {
         }
     }
 
-    $dir = Get-ExpandedPath $def.dir
-    if (-not (Test-Path $dir)) {
+    if ($viewMode) {
+        if (-not (Test-Path $mountRoot)) {
+            if (-not $DryRun) { New-Item -ItemType Directory -Path $mountRoot -Force | Out-Null }
+            $report += ("MKDIR    {0,-10} 视图目录 {1}" -f $name, $mountRoot)
+        }
+    }
+    elseif (-not (Test-Path $dir)) {
         if (-not $DryRun) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
         $report += ("MKDIR    {0,-10} {1}" -f $name, $dir)
     }
@@ -281,7 +299,7 @@ foreach ($prop in $cfg.clients.PSObject.Properties) {
 
     # 先清理孤儿：本系统建的 junction，但 store 里已经没有这个实体了（改名/删除后残留）
     $known = @($entities | ForEach-Object { $_.Name })
-    Get-ChildItem $dir -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+    Get-ChildItem $mountRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
         $attrs = $_.Attributes
         if (($attrs -band [System.IO.FileAttributes]::ReparsePoint) -eq 0) { return }
         $target = $null
@@ -296,7 +314,7 @@ foreach ($prop in $cfg.clients.PSObject.Properties) {
     }
 
     foreach ($e in $entities) {
-        $link = Join-Path $dir $e.Name
+        $link = Join-Path $mountRoot $e.Name
 
         # 该 client 按画像/例外规则是否该挂这个技能 -> 不该挂就摘掉（已有的顺手摘）
         if (-not (Test-ShouldMount $e.Name $e.Kind $name)) {
@@ -346,6 +364,10 @@ foreach ($prop in $cfg.clients.PSObject.Properties) {
     }
 
     $report += ("DONE     {0,-10} created={1} rebuilt={2} unchanged={3} pruned={4} conflict={5}" -f $name, $created, $rebuilt, $ok, $pruned, $conflict)
+    if ($viewMode) {
+        $report += ("         视图模式：junction 建在 {0}" -f $mountRoot)
+        $report += ("         agent 侧（{0}）需一条软链/junction 指向该视图 —— link.ps1 够不着的位置（如 WSL）由用户自建" -f $dir)
+    }
 }
 
 $report -join "`n"
