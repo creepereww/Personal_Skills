@@ -1,7 +1,7 @@
 ---
 name: wgc-work1-px
 description: 公司电脑 WGC-WORK1-PX 本机环境事实 —— 机型（Lecoo）、HOME 与 %USERPROFILE% 错位（HOME 在 D:\AppData\Roaming\SPB_Data）、两个 git（D:\Git 与 PortableGit，后者已升 1.3.0，credential.helper 别写死版本路径）、装了哪些 agent（WorkBuddy/ZCode/QClaw/Codex/MarsCode/Trae；opencode 在 WSL 里、两级软链挂技能、管嵌入式，实例 Skill/Subagent 分工见专节）、推送 GitHub 姿势（github.com 被 Watt Toolkit 劫持到 127.0.0.1；Bash 可直推、凭证助手用 manager 名；代理与直连两条路线时通时断、11-05 再反转：代理 502 直连通）、PowerShell 工具整场缺席的替代路径、Everything 在 D:\ 无 es.exe。判断"工具在哪、网络通不通、怎么 push"看这里。通用规则见 local-windows-shell-conventions。
-version: v0.12
+version: v0.13
 ---
 
 # wgc-work1-px（公司电脑）
@@ -98,10 +98,13 @@ WSL: ~/.config/opencode/skills ──软链──▶ _active/opencode/ ──jun
 ```
 
 ```bash
-# WSL 里执行（links.conf 已加 oc-skills 行，走现成的 wsl2win 设施，自带校验/幂等）：
+# WSL 里执行（本机设施：links.conf 已加 oc-skills 行，走 wsl2win，自带校验/幂等）：
 wsl2win oc-skills
 # 等价手工命令：ln -s /mnt/c/Users/cgw06/.skills/_active/opencode ~/.config/opencode/skills
 ```
+
+> `wsl2win` / `links.conf` 是**本机 WSL 个人设施，不在本仓库**（links.conf 还混着别的项目路径，
+> 归 dotfiles 管）—— 换机器不随行。新机器按 `local-skills-hub`「视图模式」节的通用命令自举即可。
 
 - 视图 `_active/opencode/` 由 `link.ps1` **自动维护**（routing.json 的 `view_dir`）：跑一次 `link.ps1`
   即按 opencode 画像（core + skill-dev + eda + cloud + machine 档）建/摘/校 junction，当前 14 个；

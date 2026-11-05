@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
 description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时；「skills 更新」「同步技能库」「拉远端同步」等更新仓库的意图也归它管，附 qoder 等 agent 的 AGENTS.md 自动触发提示词。含授权规则：完善中（v0.x）可直接改并回报，已完善（v1.0+）必须先确认或写 proposals/。
-version: v0.18
+version: v0.19
 ---
 
 # Skills Hub
@@ -50,7 +50,7 @@ version: v0.18
 
 - **没装的 agent 不挂、也不给它建目录**（旧行为是 `enabled` 就建，会在干净机器上凭空造空壳目录）。
 - `detect` 约定：不写 -> 看父目录；`[]` -> 不探测、永远视为已装；路径数组 -> 存在才算；`detect_any: true` -> 任一存在即可。
-- 加新 agent 时**必须想清楚它的 `detect`**：skills 目录父目录不存在的（如 opencode），要显式给安装路径，否则永远挂不上。
+- 加新 agent 时**必须想清楚它的 `detect`**：skills 目录父目录不存在的，要显式给安装路径，否则永远挂不上。agent 跑在 Windows 之外（如 WSL 里的 opencode）就用**视图模式**，见下节。
 - 调试用 `link.ps1 -ListClients`（列每个 client 的判定依据）；判错了用 `-Force` 强行挂或改 `detect`。
 
 ### 接新 agent 的四步核对（别省，省了必返工）
@@ -67,6 +67,29 @@ version: v0.18
 **两条产品线要分开注册**：同一个 agent 有国际版/CN 版之分时（Qoder: `~/.qoder` vs `~/.qoder-cn`），
 配置根目录不同，**各注册一条 client**，让没装的那条被 `detect` 自动跳过 —— 只写一条的话，
 换台装另一个版本的机器就会漏挂。
+
+### 视图模式：agent 跑在 junction 够不着的地方（如 WSL 里的 opencode）
+
+client 定义里写 `view_dir` 即进入**视图模式**：junction 不建到 agent 的 skills 目录，而是建到
+仓库里的 `_active/<client>/`，agent 侧由使用方建一条软链接过去；该 client **自动跳过安装检测**
+（视图是本机资产，与 Windows 侧装没装这个 agent 无关）。目前只有 opencode 用。
+
+⚠️ **不能直链 `store/`**：opencode 只扫 `skills/<name>/SKILL.md` **一层**（官方文档：6 个位置均不递归），
+而 store 是 `store/local/local-xxx/SKILL.md` 两层，直链过去一个都加载不到 —— 这就是要中间视图的原因。
+
+新机器（装了 WSL + opencode）自举，**不依赖任何本机个人工具**：
+
+```bash
+# 1. Windows 侧先建视图（在仓库根）
+pwsh scripts/link.ps1
+# 2. WSL 内建软链：cd 进仓库即可，$PWD 自动取路径，不用硬编码用户名
+cd /mnt/c/Users/<你>/.skills && ln -s "$PWD/_active/opencode" ~/.config/opencode/skills
+```
+
+- `~/.config/opencode/skills` 必须**不存在**（`ln -s` 遇真目录不会替换，会把链接建到目录里面）
+- 建完**新开** opencode 会话才生效（skill 列表是会话启动时快照的）
+- 本机若另有 `wsl2win` + `links.conf`（`oc-skills` 行），跑 `wsl2win oc-skills` 等效 —— 但那是
+  **个人设施、不在本仓库**，换机不用带（`links.conf` 混着别的项目路径，属跨项目配置，归 dotfiles 管）
 
 ## 🚫 修改 skill 的授权规则
 
