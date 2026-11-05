@@ -19,8 +19,14 @@
 
 # Personal_Dotfiles 仓库（2026-11-05 立）
 
-- **位置**：本地 `C:/Users/cgw06/.dotfiles`，远端 `creepereww/Personal_Dotfiles`（private，master，`978789d`）。
+- **位置**：本地 `C:/Users/cgw06/.dotfiles`，远端 `creepereww/Personal_Dotfiles`（private，master，`90254b7`）。
 - **为什么单开**：wsl2win 是跨项目工具、links.conf 全是本机绝对路径 —— 混进 skills 仓库会跑到别的机器给出错误信息。
-- **内容**：`wsl/bin/wsl2win`（13KB 工具：真身留 Windows、WSL 建软链）、`wsl/bin/fix-perm.sh`、`wsl/install.sh`（~/bin 改软链到仓库 + links.conf 迁到 `~/.config/wsl2win/`）、`wsl/links.conf.example`（脱敏模板）。
-- **关键设计**：wsl2win 用 `readlink -f` 定位自身找 links.conf，软链后看到的是仓库目录（仓库不放本机路径）→ 配置必须走 `~/.config/wsl2win/links.conf` 兜底。`.gitattributes` 强制 .sh 为 LF（本机 autocrlf=true，否则检出成 CRLF → WSL bad interpreter）。
-- **本机 WSL 侧尚未装**：wsl.exe 被沙箱黑名单拦，install.sh 需用户自己在 WSL 跑；跑之前一切照旧。
+- **WSL 侧**：`wsl/bin/wsl2win`（13KB 工具：真身留 Windows、WSL 建软链）、`wsl/bin/fix-perm.sh`、`wsl/install.sh`（~/bin 改软链到仓库 + links.conf 迁到 `~/.config/wsl2win/`）、`wsl/links.conf.example`（脱敏模板）。
+- **Windows 侧（2026-11-05 加，用户问「Windows 需要管 dotfiles 吗」引出）**：只收三样手写资产 ——
+  `win/vscode/settings.json`（554 行）、`win/vscode/keybindings.json`（89 行，含自制续行符宏）、
+  `win/gitconfig.template`（`{{EDITOR}}` 由脚本探测替换）+ `extensions.txt`（51 个扩展，`cgw06.*` 两个是自制、市场装不回）。
+  `win/install.ps1`：默认「仓库→本机」（备份 `*.bak-<时间戳>` + SHA256 校验），`-Push`「本机→仓库」，`-Extensions` 重导清单。
+  **不收**：注册表类（Everything/Quicker/Watt）、ssh key/token、浏览器数据、各 agent 配置（归本仓库）。
+- **Windows dotfiles 三个坑（已写进 dotfiles README）**：① 本机 `$env:HOME=D:\AppData\Roaming\SPB_Data` 而 `USERPROFILE=C:\Users\cgw06`，git 读 HOME、VS Code 读 `%APPDATA%`；`$env:HOME` 还带双反斜杠，Join-Path 前必须折叠。② 单文件不能 junction、跨盘 hardlink 不行、symlink 要管理员 → 只能「仓库当源+脚本复制」，不做自动同步。③ 路径写死用户名/安装位置，换机即废。
+- **关键设计**：wsl2win 用 `readlink -f` 定位自身找 links.conf，软链后看到的是仓库目录（仓库不放本机路径）→ 配置必须走 `~/.config/wsl2win/links.conf` 兜底。`.gitattributes` 对 `.sh`、`win/` 下 json/template/ps1、`*.md`、`*.txt` 全锁 LF（本机 autocrlf=true，否则检出 CRLF → WSL bad interpreter / 整文件 diff）。
+- **本机 WSL 侧尚未装**：wsl.exe 被沙箱黑名单拦，install.sh 需用户自己在 WSL 跑；跑之前一切照旧。Windows 侧已实跑验证（备份在 `*.bak-20261105-120515`）。
