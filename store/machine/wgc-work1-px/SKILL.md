@@ -1,7 +1,7 @@
 ---
 name: wgc-work1-px
-description: 公司电脑 WGC-WORK1-PX 本机环境事实 —— 机型（Lecoo）、HOME 与 %USERPROFILE% 错位（HOME 在 D:\AppData\Roaming\SPB_Data）、两个 git（D:\Git 与 PortableGit，后者已升 1.3.0，credential.helper 别写死版本路径）、装了哪些 agent（WorkBuddy/ZCode/QClaw/Codex/MarsCode/Trae；opencode 在 WSL 里、两级软链挂技能、管嵌入式，实例 Skill/Subagent 分工见专节）、推送 GitHub 姿势（github.com 被 Watt Toolkit 劫持到 127.0.0.1；Bash 可直推、凭证助手用 manager 名；代理与直连两条路线时通时断、11-05 再反转：代理 502 直连通）、PowerShell 工具整场缺席的替代路径、Everything 在 D:\ 无 es.exe。判断"工具在哪、网络通不通、怎么 push"看这里。通用规则见 local-windows-shell-conventions。
-version: v0.13
+description: 公司电脑 WGC-WORK1-PX 本机环境事实 —— 机型（Lecoo）、HOME 与 %USERPROFILE% 错位（HOME 在 D:\AppData\Roaming\SPB_Data）、两个 git（D:\Git 与 PortableGit，后者已升 1.3.0，credential.helper 别写死版本路径）、装了哪些 agent（WorkBuddy/ZCode/QClaw/Codex/MarsCode/Trae；opencode 在 WSL 里、v2 配置直挂、管嵌入式，实例 Skill/Subagent 分工见专节）、推送 GitHub 姿势（github.com 被 Watt Toolkit 劫持到 127.0.0.1；Bash 可直推、凭证助手用 manager 名；代理与直连两条路线时通时断、11-05 再反转：代理 502 直连通）、PowerShell 工具整场缺席的替代路径、Everything 在 D:\ 无 es.exe。判断"工具在哪、网络通不通、怎么 push"看这里。通用规则见 local-windows-shell-conventions。
+version: v0.14
 ---
 
 # wgc-work1-px（公司电脑）
@@ -85,35 +85,31 @@ version: v0.13
 
 它跑在 WSL 内，`~/.config/opencode/skills/` 落在 **WSL 文件系统**里，不是 `C:\Users\cgw06\...`。
 所以 `routing.json` 给 opencode 配的 Windows 路径（`dir` + 三条 `detect`）**一条都不会命中** ——
-`link.ps1` 对该 client 走**视图模式**（`view_dir=_active/opencode`，2026-11-05 起）：
-Windows 侧装没装 opencode 都建视图、不再报 NOTFOUND；真正接到 opencode 靠 WSL 内部一条软链。
+`link.ps1` 对该 client 走**视图模式**（`view_dir=_active/opencode`）：Windows 侧装没装都建视图、不报 NOTFOUND。
 
-**方案（已搭好，2026-11-03；视图维护自动化，2026-11-05）：两级链接。** ⚠️ 不能把 `store` 直接链到
-`skills/` —— opencode 只扫 `skills/<name>/SKILL.md` **一层**（官方文档 opencode.ai/docs/skills：
-6 个位置均不递归），而 store 下是 `store/local/local-xxx/SKILL.md` 两层，链过去一个都加载不到。
-所以中间加一个 Windows 侧挂载视图：
+**本机是 opencode v2（2.0.27），不用软链**：v2 的 `opencode.json(c)` 有 `skills` 数组，可写绝对路径
+（v1 只扫 `skills/<name>/SKILL.md` 一层、才被迫用软链；v2 支持嵌套最深六层）。已配好：
 
-```
-WSL: ~/.config/opencode/skills ──软链──▶ _active/opencode/ ──junction×N──▶ store/{local,fork,cache,machine}/<name>
+```jsonc
+// WSL: ~/.config/opencode/opencode.jsonc
+{ "skills": ["/mnt/c/Users/cgw06/.skills/_active/opencode"] }
 ```
 
-```bash
-# WSL 里执行（本机设施：links.conf 已加 oc-skills 行，走 wsl2win，自带校验/幂等）：
-wsl2win oc-skills
-# 等价手工命令：ln -s /mnt/c/Users/cgw06/.skills/_active/opencode ~/.config/opencode/skills
-```
+视图 `_active/opencode/` 仍由 `link.ps1` 维护（14 个 junction，按 opencode 画像过滤），所以
+新增/调整 skill 只跑 `link.ps1`，**不用碰 opencode 配置**。也别直链 `store/`：v2 技术上能扫到
+（深度 2），但会把 life 类组一起灌进去，破坏画像。
 
-> `wsl2win` / `links.conf` 是**本机 WSL 个人设施，不在本仓库**（links.conf 还混着别的项目路径，
-> 归 dotfiles 管）—— 换机器不随行。新机器按 `local-skills-hub`「视图模式」节的通用命令自举即可。
+备选（将来退回 v1、或不想改配置时）：WSL 内 `ln -s "$PWD/_active/opencode" ~/.config/opencode/skills`，
+或 `wsl2win oc-skills`（个人设施在 `Personal_Dotfiles` 仓库，不随 skills 仓库走）。两种方式**别同时用**。
 
 - 视图 `_active/opencode/` 由 `link.ps1` **自动维护**（routing.json 的 `view_dir`）：跑一次 `link.ps1`
   即按 opencode 画像（core + skill-dev + eda + cloud + machine 档）建/摘/校 junction，当前 14 个；
   `_active/` 被 gitignore，是本机视图目录
-- 名字合规：opencode 要求 `^[a-z0-9]+(-[a-z0-9]+)*$` 且 frontmatter name=目录名，我们的实体都满足
-- 穿透路径：Linux 软链 → drvfs(`/mnt/c`) junction → NTFS 真身。**整体待首次在 WSL 内验证**
-  （WSL 软链在 `\\wsl.localhost\` 下不可见，Windows 侧代验不了，只能 WSL 内 `ls` + 读文件确认）
-- 以后新增/调整 skill：跑 `link.ps1` 刷视图即可，WSL 侧软链不用动
-- 现状（2026-11-05）：视图 14 个 junction 由 link.ps1 维护并验证；软链待用户在 WSL 执行 `wsl2win oc-skills`
+- 名字合规：v2 的 skill ID 取路径最后一级目录名（frontmatter `name` 只是显示名），我们的实体都满足
+  `^[a-z0-9]+(-[a-z0-9]+)*$`
+- 穿透路径：WSL 配置 → drvfs(`/mnt/c`) → junction → NTFS 真身。**待用户在 WSL 开一次 opencode 验收**
+  （WSL 文件在 `\\wsl.localhost\` 下可见、但软链不可见，最终以 opencode 自己的 skill 列表为准）
+- 现状（2026-11-05）：`skills` 配置已写、视图 14 个 junction 就绪；等首次在 WSL 内确认 skill 列表
 
 ### WSL 里这个 opencode 实例的实况（Skill / Subagent 分工）
 

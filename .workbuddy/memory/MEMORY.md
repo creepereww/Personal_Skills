@@ -8,8 +8,9 @@
 
 # WSL 内 opencode 的 skills 挂载（2026-11-03 立）
 
-- **方案：两级链接**。WSL `~/.config/opencode/skills` 软链 → Windows `_active/opencode/`（junction 视图×13）→ store 实体。不能直链 store：opencode 只扫 skills/<name>/SKILL.md 一层（官方 docs 确认，不递归）。
-- **软链用现成设施**：WSL `~/bin/wsl2win` + `links.conf`，条目 `oc-skills` 已加；用户在 WSL 跑 `wsl2win oc-skills` 即生效（wsl.exe 被沙箱黑名单拦，我无法代建 Linux 软链；UNC 也建不了）。
+- **方案（2026-11-05 改为 v2 配置直挂）**：本机 opencode 是 **v2（2.0.27）**，`~/.config/opencode/opencode.jsonc` 写 `skills: ["/mnt/c/Users/cgw06/.skills/_active/opencode"]` —— **不用软链**。旧结论「只扫一层」是 v1 规则；v2 支持嵌套最深六层 + `skills` 配置数组。视图 `_active/opencode` 仍由 link.ps1 维护（作用变为画像过滤），新增 skill 只跑 link.ps1、不用碰 opencode 配置。
+- **v1 备选**：WSL `~/.config/opencode/skills` 软链 → 视图（两种方式别同时用，会重复注册）。
+- **软链设施（v1 备选）**：WSL `~/bin/wsl2win` + `links.conf`，条目 `oc-skills` 已有；`wsl2win oc-skills` 即建软链（wsl.exe 被沙箱黑名单拦，我无法代建 Linux 软链；UNC 也建不了）。v2 配置直挂后这一步可跳过。
 - **wsl2win / links.conf 不进仓库（2026-11-05 定）**：它们跨项目个人设施（links.conf 还混着 PXD-YS56 等无关路径），搬进仓库会带本机绝对路径、换机即失效。仓库里的**通用自举接法**在 `local-skills-hub`「视图模式」节（v0.19）：`cd /mnt/c/Users/<你>/.skills && ln -s "$PWD/_active/opencode" ~/.config/opencode/skills`（先跑 link.ps1 建视图；`$PWD` 免硬编码用户名）。
 - **视图刷新（2026-11-05 起自动化）**：link.ps1 视图模式自动维护 —— routing.json 的 opencode 条目写 `view_dir=_active/opencode`，跑 link.ps1 即按画像建/摘/校 junction（当前 14 个），新增 skill 不用再手工刷视图；WSL 侧软链始终不用动。
 - **没装 WSL 的电脑**：links.conf 在 WSL 的 home（不在仓库），不同步；视图目录被 gitignore，也不同步。那边只有 routing.json 的 opencode 画像会到，但 link.ps1 视图模式照样建视图（无害空目录），装 opencode 后自建软链即可。

@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
 description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时；「skills 更新」「同步技能库」「拉远端同步」等更新仓库的意图也归它管，附 qoder 等 agent 的 AGENTS.md 自动触发提示词。含授权规则：完善中（v0.x）可直接改并回报，已完善（v1.0+）必须先确认或写 proposals/。
-version: v0.20
+version: v0.21
 ---
 
 # Skills Hub
@@ -71,27 +71,39 @@ version: v0.20
 ### 视图模式：agent 跑在 junction 够不着的地方（如 WSL 里的 opencode）
 
 client 定义里写 `view_dir` 即进入**视图模式**：junction 不建到 agent 的 skills 目录，而是建到
-仓库里的 `_active/<client>/`，agent 侧由使用方建一条软链接过去；该 client **自动跳过安装检测**
+仓库里的 `_active/<client>/`，agent 侧由使用方接过去；该 client **自动跳过安装检测**
 （视图是本机资产，与 Windows 侧装没装这个 agent 无关）。目前只有 opencode 用。
 
-⚠️ **不能直链 `store/`**：opencode 只扫 `skills/<name>/SKILL.md` **一层**（官方文档：6 个位置均不递归），
-而 store 是 `store/local/local-xxx/SKILL.md` 两层，直链过去一个都加载不到 —— 这就是要中间视图的原因。
+视图的第二个作用是**按画像过滤**（只挂画像所含组），所以即便 opencode 新版能扫深层目录，也别直链
+`store/` —— 会把生活类组一起灌进去。
 
-新机器（装了 WSL + opencode）自举，**不依赖任何本机个人工具**：
+opencode 的层级规则**分版本，照着改之前先确认版本**：
+
+| 版本 | 规则 | 挂法 |
+|---|---|---|
+| v1 | 只认 `skills/<name>/SKILL.md` **一层** | 必须视图 + 软链 |
+| v2（2.x） | 支持嵌套**最深六层**；`opencode.json(c)` 有 `skills` 数组可写绝对路径 | **首选直接配路径，零文件系统操作** |
+
+**v2 自举（当前推荐）**：编辑 `~/.config/opencode/opencode.jsonc`，视图仍由 `link.ps1` 维护：
+
+```jsonc
+{ "skills": ["/mnt/c/Users/<你>/.skills/_active/opencode"] }
+```
+
+（路径按 **WSL 视角**写 `/mnt/c/...`；和软链方案**别同时用**，否则同一批 skill 会被两个来源重复注册）
+
+**v1 自举（或想用默认位置）**：
 
 ```bash
-# 1. Windows 侧先建视图（在仓库根）
-pwsh scripts/link.ps1
-# 2. WSL 内建软链：cd 进仓库即可，$PWD 自动取路径，不用硬编码用户名
+pwsh scripts/link.ps1                                          # 先建视图
 cd /mnt/c/Users/<你>/.skills && ln -s "$PWD/_active/opencode" ~/.config/opencode/skills
 ```
 
-- `~/.config/opencode/skills` 必须**不存在**（`ln -s` 遇真目录不会替换，会把链接建到目录里面）
+- 软链方案要求 `~/.config/opencode/skills` 必须**不存在**（`ln -s` 遇真目录不替换，会把链接建进目录里）
 - 建完**新开** opencode 会话才生效（skill 列表是会话启动时快照的）
 - **Windows 原生也装了 opencode**：视图模式下 `link.ps1` 检测到 `~/.config/opencode` 在，会自动把
-  `~/.config/opencode/skills` 接成指向视图的 junction —— 原生版与 WSL 版读同一份，无需额外操作
-- 若装了 `wsl2win`（个人设施，在 `Personal_Dotfiles` 仓库，`wsl/install.sh` 一键装），跑
-  `wsl2win oc-skills` 等效 —— 它不在本仓库，换机不用带（`links.conf` 混着别的项目路径，归 dotfiles 管）
+  `~/.config/opencode/skills` 接成指向视图的 junction —— 原生版与 WSL 版读同一份
+- `wsl2win`（`Personal_Dotfiles` 仓库）是 v1/软链路线的便利工具，v2 配路径的话用不上
 
 ## 🚫 修改 skill 的授权规则
 
