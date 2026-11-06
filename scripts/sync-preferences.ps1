@@ -49,6 +49,15 @@ $targets = [ordered]@{
     "ZCode"     = Join-Path $env:USERPROFILE ".zcode\AGENTS.md"
     "opencode"  = Join-Path $env:USERPROFILE ".config\opencode\AGENTS.md"
     "豆包工作"  = Join-Path $env:USERPROFILE "DoubaoWork\AGENTS.md"
+    # 2026-11-06 扩充：把破坏性操作规则铺到其余 AI 工具，统一走 AGENTS.md 约定
+    "TraeCN"    = Join-Path $env:USERPROFILE ".trae-cn\AGENTS.md"
+    "Trae"      = Join-Path $env:USERPROFILE ".trae\AGENTS.md"
+    "Codex"     = Join-Path $env:USERPROFILE ".codex\AGENTS.md"
+    "Cline"     = Join-Path $env:USERPROFILE ".cline\AGENTS.md"
+    "CodeGeeX"  = Join-Path $env:USERPROFILE ".codegeex\AGENTS.md"
+    "Lingma"    = Join-Path $env:USERPROFILE ".lingma\AGENTS.md"
+    "MarsCode"  = Join-Path $env:USERPROFILE ".marscode\AGENTS.md"
+    "Qoder"     = Join-Path $env:USERPROFILE ".qoder\AGENTS.md"
 }
 
 # 目标文件 -> 对应的 routing.json client 名（用于安装检测）
