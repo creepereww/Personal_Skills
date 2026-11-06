@@ -1,7 +1,7 @@
 ---
 name: local-windows-shell-conventions
 description: Windows 上跨机器通用的 shell 与链接约定 —— MSYS 程序的 /c/ 路径 vs Windows 原生程序的 C:/ 路径该用哪种、junction 目录联接的正确建删方式（含"不能指向 UNC 路径"这个静默坑）、Git for Windows 把 junction 当普通目录的坑、skill 目录命名正则、各 AI 客户端的 skills 目录、主机名大小写匹配。写 shell 脚本、建软链接、打通 WSL 与 Windows 目录（含 9P 上放 SQLite 数据库必被回退的坑）、排查路径报错或 skill 没生效时看这里。机器专属信息（机型、客户端装在哪个盘、网络情况）见 machine 档；WorkBuddy 的 skill/专家机制见 local-memory-map。
-version: v0.10
+version: v0.11
 ---
 
 # Windows Shell 与链接约定（跨机器通用）
@@ -89,7 +89,22 @@ EXE="C:/path/to/program.exe"
   **两个视图都不可信**。凡是 Windows 侧复制/新建到 ext4 的可执行文件，最后必须在 WSL 里
   `chmod +x`（`mv`/`cat >` 保 inode 不受此影响）
 - 建：`New-Item -ItemType Junction -Path <link> -Target <dir>`
-- **删必须用 `[System.IO.Directory]::Delete($link, $false)`** —— `Remove-Item -Recurse` 会连带删掉**源目录内容**
+- **删 junction 必须用 `[System.IO.Directory]::Delete($link, $false)`** —— `Remove-Item -Recurse` 会连带删掉**源目录内容**
+- ⚠️ **删「含 junction 的父目录」同样会穿透 —— 这条比上一条更容易踩。**
+  父目录本身是普通目录，属性上看不出任何异常，`Remove-Item -Recurse` 会把里面的 junction 一起跟进去。
+  实测：删 `~/.qoder`（一个普通目录，内部有个 `skills` junction 指向
+  `~/.skills/store/`），结果源端 7 个 skill 的 `SKILL.md` 被删掉，而报错信息里一个字都没提。
+  **删任何目录前，先扫一遍 reparse point**：
+
+  ```powershell
+  Get-ChildItem $dir -Recurse -Force -EA SilentlyContinue |
+    Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint } |
+    Select-Object FullName, LinkTarget
+  ```
+
+  有命中就先逐个 `[System.IO.Directory]::Delete($link, $false)` 摘掉链接，再删父目录。
+  **别用 `robocopy /MIR` 清这种目录**——同理，它会跟进去。
+  删完回读源目录文件数，别只看退出码。
 - Git for Windows 会把 junction 当普通目录，**挂载目录必须写进 `.gitignore`**，否则仓库里会出现重复内容
 - 判断是不是联接：`($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0`
 - PowerShell 7 有 `.LinkTarget` / `.LinkType` 可读目标；PowerShell 5.1 没有，得用 `cmd /c dir /AL`
