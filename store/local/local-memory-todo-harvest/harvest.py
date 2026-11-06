@@ -62,19 +62,44 @@ _GENERIC_TITLE = ("项目长期笔记", "长期笔记", "本地记忆", "跨项�
 HOME = os.path.expanduser("~")
 
 
+def _add_unique(lst, path):
+    """把存在的目录去重加进列表（用于拼候选家目录）。"""
+    if not path or not os.path.isdir(path):
+        return
+    ap = os.path.abspath(path)
+    if all(os.path.abspath(x) != ap for x in lst):
+        lst.append(ap)
+
+
 def scan_homes():
-    """agent 记忆的用户目录。Windows 上就是 ~；WSL 里 ~ 是 Linux 家目录，而 Windows 侧各 agent 的记忆
-    挂在 /mnt/c/Users/<用户> 下——opencode 这类跑在 WSL 的 agent 被要求归集待办时两边都得能看到。
-    Windows 分支只返回 [HOME]，所以待办 id 与既有云表行为完全不变。"""
+    """agent 记忆的用户目录。
+    Windows 上 Python 的 ~ 是 %USERPROFILE%，**不是 $HOME** —— QClaw / OpenClaw 跟 $HOME 走，
+    所以 HOME 被重定向到别的盘时两个都要扫（本机 HOME 在 D 盘）。
+    WSL 里 ~ 是 Linux 家目录，再补 /mnt/c/Users/*：Windows 侧 agent 的记忆同样看得到。"""
     homes = [HOME]
+    if os.name == "nt":
+        _add_unique(homes, os.environ.get("HOME"))
     if sys.platform.startswith("linux") and os.path.isdir("/mnt/c/Users"):
         for p in sorted(glob.glob("/mnt/c/Users/*")):
             if not os.path.isdir(p):
                 continue
             if any(os.path.isdir(os.path.join(p, d))
                    for d in (".qoder", ".qoder-cn", ".workbuddy", ".claude", ".codex", ".trae-cn", ".openclaw", ".qclaw")):
-                homes.append(p)
+                _add_unique(homes, p)
     return homes
+
+
+def extra_workbuddy_roots():
+    """WorkBuddy 的项目记忆跟着工作区走。除了 DEFAULT_ROOTS，再把 $HOME（Windows）
+    和 WSL 下的 /mnt/c/Users/*（只挑确实有 WorkBuddy 痕迹的）纳入候选。"""
+    roots = []
+    if os.name == "nt":
+        _add_unique(roots, os.environ.get("HOME"))
+    if sys.platform.startswith("linux") and os.path.isdir("/mnt/c/Users"):
+        for p in sorted(glob.glob("/mnt/c/Users/*")):
+            if os.path.isdir(os.path.join(p, ".workbuddy")) or os.path.isdir(os.path.join(p, "WorkBuddy")):
+                _add_unique(roots, p)
+    return roots
 
 # WorkBuddy 的项目记忆跟着工作区走（<工作区>/.workbuddy/memory/），根目录是本机事实，
 # 放在 DEFAULT_ROOTS 里；其余 agent 的记忆都集中在用户目录下，用 HOME 相对路径描述，跨机器成立。
@@ -84,6 +109,8 @@ def scan_homes():
 AGENT_SOURCES = [
     {"agent": "Qoder", "kind": "project", "pattern": ".qoder/projects/*/memory/*.md"},
     {"agent": "Qoder", "kind": "personal", "pattern": ".qoder/memory/*.md"},
+    {"agent": "Qoder CN", "kind": "project", "pattern": ".qoder-cn/projects/*/memory/*.md"},
+    {"agent": "Qoder CN", "kind": "personal", "pattern": ".qoder-cn/memory/*.md"},
     {"agent": "Claude Code", "kind": "project", "pattern": ".claude/projects/*/memory/*.md"},
     {"agent": "Claude Code", "kind": "personal", "pattern": ".claude/agent-memory/*/MEMORY.md"},
     {"agent": "Codex", "kind": "personal", "pattern": ".codex/memories/*.md"},
@@ -190,16 +217,35 @@ INLINE_TODO = re.compile(r"(?:\*\*)?待办(?:\*\*)?\s*[:：]\s*(.*)$")
 # 编号切分：圈码①-⑳㉑… 或 数字后跟 . ) 、 ）
 NUM_MARKER = re.compile(r"(?:[⓪-⓿\u2460-\u24ff])|(?:[0-9]+[.、)）])")
 
-# 章节条目里的「笔记句」前缀：这些是结论/发现/踩坑，不是待办（演示规格只收真待办）
+# 章节条目里的「笔记句」前缀：这些是结论/发现/踩坑，不是待办（演示规格只收真待办）。
+# 泛标签（状态/现状/进展…）只在句首带冒号时才算——「实测：」是记录，「实测一下网速」是待办。
 NOTE_PREFIXES = (
     "关键发现：", "关键发现:", "踩坑：", "踩坑:", "判定：", "判定:", "结论：", "结论:",
     "备注：", "备注:", "说明：", "说明:", "注意：", "注意:", "发现：", "发现:",
+    "实测注意：", "实测注意:", "实测：", "实测:", "验证：", "验证:",
+    "用户反馈：", "用户反馈:", "判断：", "判断:", "判断方向：", "判断方向:",
+    "状态：", "状态:", "现状：", "现状:", "进展：", "进展:", "背景：", "背景:",
+    "原因：", "原因:", "证据：", "证据:", "结果：", "结果:", "记录：", "记录:",
     "重新分档：", "重新分档:", "架构是", "编码用了", "未做任何删除",
+)
+
+# 状态词开头 = 这事已经做过/不用做了，属于记录而非待办
+STATUS_PREFIXES = (
+    "已废弃", "已改为", "已确认", "已修复", "已发布", "已上线", "已删除",
+    "已完成", "已同步", "已提交", "已推送", "仍保留", "仍待定",
+)
+# 句中带这些词同样说明是「现状记录」而不是待办。
+# 只有待办章节的裸条目走这条规则；checkbox 是显式信号，即使文案里有状态词也照收，
+# 所以「清理已废弃的旧接口」这类真待办写成 - [ ] 就不会被误过滤。
+STATUS_MARKERS = (
+    "已废弃", "已改为", "已修复", "已发布", "已上线", "已删除",
+    "已完成", "已同步", "已提交", "已推送", "仍保留", "仍待定",
 )
 
 
 def _is_note(text):
-    return text.startswith(NOTE_PREFIXES)
+    return (text.startswith(NOTE_PREFIXES) or text.startswith(STATUS_PREFIXES)
+            or any(m in text for m in STATUS_MARKERS))
 
 
 def _date_of(relpath):
@@ -309,6 +355,9 @@ def extract_todos_from_file(path, project, relroot, agent="WorkBuddy"):
 
         # 4) 待办章节下的列表项（过滤结论/发现类笔记句）
         if in_todo_section:
+            if raw[:1] in (" ", "\t"):
+                # 缩进的子条目是上一条的说明/细节，不单独算待办
+                continue
             li = re.match(r"^\s*[-*]\s+(.*)$", line)
             if li:
                 text = clean(li.group(1))
@@ -340,9 +389,12 @@ def _mk(project, relpath, line, text, signal, done, section, agent="WorkBuddy"):
 
 
 def discover_memory_files(extra_roots, seen=None):
-    """WorkBuddy：项目记忆跟着工作区走，个人记忆在 ~/.workbuddy/user-*/。"""
+    """WorkBuddy：项目记忆跟着工作区走，个人记忆在 ~/.workbuddy/user-*/。
+
+    个人目录里还有 BOOTSTRAP / IDENTITY / SOUL / USER 这些人格设定文件，只认 MEMORY.md
+    和 memory/ 下的日志——否则设定里提到「待办」的口吻会被当成真待办。"""
     seen = seen if seen is not None else set()
-    roots = list(DEFAULT_ROOTS) + list(extra_roots)
+    roots = list(DEFAULT_ROOTS) + list(extra_roots) + extra_workbuddy_roots()
     files = []
     for root in roots:
         # 项目记忆：<root>/*/.workbuddy/memory/*.md
@@ -351,12 +403,13 @@ def discover_memory_files(extra_roots, seen=None):
             if ap not in seen:
                 seen.add(ap)
                 files.append((ap, "WorkBuddy", "project", root))
-        # 个人记忆：<root>/.workbuddy/user-*/MEMORY.md 及日志
-        for p in glob.glob(os.path.join(root, ".workbuddy", "user-*", "*.md")):
-            ap = os.path.abspath(p)
-            if ap not in seen:
-                seen.add(ap)
-                files.append((ap, "WorkBuddy", "personal", root))
+        # 个人记忆：<root>/.workbuddy/user-*/MEMORY.md（+ 同目录 memory/ 下的日志）
+        for pat in ("MEMORY.md", os.path.join("memory", "*.md")):
+            for p in glob.glob(os.path.join(root, ".workbuddy", "user-*", pat)):
+                ap = os.path.abspath(p)
+                if ap not in seen:
+                    seen.add(ap)
+                    files.append((ap, "WorkBuddy", "personal", root))
     return files
 
 
@@ -420,11 +473,12 @@ def scan(extra_roots, only_agent=None):
     for t in todos:
         t["done"] = t["source_done"]
         t["auto"] = t["project"]
-    # 去重：同 agent + 同项目 + 同日志文件名 + 同行号 + 同文本只留一条
-    # （同一项目的镜像工作区，如 C 盘旧位置与 D 盘主目录，会扫出重复内容）
+    # 去重：同 agent + 同待办ID 只留一条。
+    # 镜像工作区（C 盘旧位置 + D 盘主目录）的项目名与文件相对路径一样，id 天然相同；
+    # 同一文件里同文本重复出现的待办也会合并成一条（以前按行号去重会漏成两条）。
     seen = {}
     for t in todos:
-        key = (t["agent"], t["project"], os.path.basename(t["file"]), t["line"], t["text"])
+        key = (t["agent"], t["id"])
         if key not in seen:
             seen[key] = t
     return list(seen.values())
@@ -498,7 +552,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </div>
 <main id="list"></main>
 <footer>
-  数据仅来自本机 WorkBuddy 记忆文件，纯本地、不联网、只读预览。
+  数据来自本机各 agent（WorkBuddy / Qoder / Claude Code / Codex / …）的记忆文件，纯本地、不联网、只读预览。
   正式看板在生活工作台「记忆待办」模块：由本技能扫描同步进云表，支持拖动排优先级、备注项目别名。
 </footer>
 <script>

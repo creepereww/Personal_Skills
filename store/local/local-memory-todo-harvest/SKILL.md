@@ -1,7 +1,7 @@
 ---
 name: local-memory-todo-harvest
-description: 扫描全部 agent（WorkBuddy / Qoder / Claude Code / Codex / Gemini / Windsurf / Trae / OpenClaw / QClaw / ZCode）记忆文件里散落的待办——待办章节 / checkbox / 行内待办句，连出处一起同步进「生活工作台·记忆待办」云表；正式看板是生活工作台里的「AI项目管理」模块（按来源 agent + 项目筛选、拖动排优先级、项目别名、纳入副业，没有勾选）。纯标准库、不联网、不回写原始记忆；扫描在任何 agent 里都能跑，只有写云表那一步需要 WorkBuddy 通道（别的 agent 用 --json 交接清单）。
-version: v0.7
+description: 扫描全部 agent（WorkBuddy / Qoder / Qoder CN / Claude Code / Codex / Gemini / Windsurf / Trae / OpenClaw / QClaw / ZCode）记忆文件里散落的待办——待办章节 / checkbox / 行内待办句，连出处一起同步进「生活工作台·记忆待办」云表；正式看板是生活工作台里的「AI项目管理」模块（按来源 agent + 项目筛选、拖动排优先级、项目别名、纳入副业，没有勾选）。纯标准库、不联网、不回写原始记忆；扫描在任何 agent 里都能跑，只有写云表那一步需要 WorkBuddy 通道（别的 agent 用 --json 交接清单）。
+version: v0.8
 ---
 
 # 记忆待办归集 (memory-todo-harvest)
@@ -25,8 +25,9 @@ Agent 每天在各项目的记忆日志里写工作记录，里面散落着「�
 
 | agent | kind | 相对 HOME 的模式 |
 |---|---|---|
-| WorkBuddy | project / personal | `<根>/*/.workbuddy/memory/*.md`、`<根>/.workbuddy/user-*/*.md`（根见「默认扫描根」，走老逻辑不进这张表） |
+| WorkBuddy | project / personal | `<根>/*/.workbuddy/memory/*.md`、`<根>/.workbuddy/user-*/MEMORY.md`（+ `user-*/memory/*.md`；同目录的 BOOTSTRAP/IDENTITY/SOUL/USER 是人格设定，不扫。根见「默认扫描根」，走老逻辑不进这张表） |
 | Qoder | project / personal | `.qoder/projects/*/memory/*.md` / `.qoder/memory/*.md` |
+| Qoder CN | project / personal | `.qoder-cn/projects/*/memory/*.md` / `.qoder-cn/memory/*.md` |
 | Claude Code | project / personal | `.claude/projects/*/memory/*.md` / `.claude/agent-memory/*/MEMORY.md` |
 | Codex | personal | `.codex/memories/*.md` |
 | Gemini | personal | `.gemini/GEMINI.md` |
@@ -35,7 +36,12 @@ Agent 每天在各项目的记忆日志里写工作记录，里面散落着「�
 | OpenClaw / QClaw | personal | `.openclaw/workspace/memory/*.md`、`.qclaw/workspace/memory/*.md` |
 | ZCode | project | `.zcode/projects/*/memory/*.md` |
 
-扫不到的：豆包（记忆在云端向量库，本机没有明文）、opencode（SQLite，不可直读）。
+扫不到的：豆包（记忆在云端向量库，本机没有明文）、opencode（SQLite）、QClaw / OpenClaw 当前版本（记忆在
+`~/.qclaw/memory/lossless/lcm.db`、`~/.openclaw/state/openclaw.sqlite`，表里的 `workspace/memory/*.md` 只对老布局有效）、
+ZCode（`~/.zcode` 下没有 `projects/*/memory`）；Codex 的 `memories/` 目录常常是空的（新版实际落在 SQLite）。
+这些源目录不存在时静默跳过，不算错误。
+**家目录要认两个**：Windows 上 Python 的 `~` 是 `%USERPROFILE%`，而 QClaw / OpenClaw 等跟 **`$HOME`** 走——
+`scan_homes()` 在 Windows 会把两者都纳入（本机 HOME 被重定向到 D 盘）；WorkBuddy 的项目根也会补 `$HOME`。
 **WSL 里的 agent**（本机 opencode 就跑在 WSL）：`~` 是 Linux 家目录，`scan_homes()` 会额外把 `/mnt/c/Users/<用户>`
 也纳入候选家目录，Windows 侧各 agent 的记忆同样扫得到；relpath 相对各自的家目录算，所以同一条记忆在哪边扫到都是同一个待办 id。
 要加新源就在 `AGENT_SOURCES` 里添一行 `{agent, kind, pattern}`，别在扫描函数里写特例。
@@ -56,7 +62,8 @@ Agent 每天在各项目的记忆日志里写工作记录，里面散落着「�
 1. **待办语义章节**：日志里 `## 待办` / `## 下一步` / `## 未完成` 等标题下的列表项。
 2. **checkbox**：`- [ ] xxx` 为待办；`- [x] xxx` 记为已完成（同步进「已完成」列）。
 3. **行内待办句**：`**待办**：①…②…③…`，编号自动拆成多条。
-4. **笔记句过滤**：章节条目里以 `关键发现：/踩坑：/判定：/结论：/备注：/说明：/注意：` 等开头的是结论不是待办，自动跳过。
+4. **笔记句过滤**：待办章节里的裸条目，命中以下任一就不算待办——以 `关键发现：/踩坑：/判定：/结论：/备注：/说明：/注意：/实测：/状态：/现状：/进展：/背景：/原因：/证据：/结果：/记录：` 等标签开头；或句中带 `已废弃/已改为/已修复/已发布/已上线/已删除/已完成/已同步/已提交/已推送/仍保留/仍待定`（现状记录）。
+   **缩进的子条目**是上一条的说明，不单独算待办。checkbox 是显式信号，不受这些过滤影响——真待办写成 `- [ ]` 就不会被误杀。
 
 ## 项目显示名（不用日期目录名 / 不用 slug）
 扫描侧解析优先级：
@@ -67,7 +74,7 @@ Agent 每天在各项目的记忆日志里写工作记录，里面散落着「�
 4. **用户备注别名最高优先**：在生活工作台「AI项目管理」的「项目设置」面板改，写云表「别名」列，扫描永不覆盖。
    注意该面板按**自动名**成组：不同 agent 恰好同名会被当成一个项目、共用别名与纳入副业（实际命名基本撞不上；撞了就去 `PROJECT_ALIASES` 给其中一个改名）。
 
-同一项目的镜像工作区（C 盘旧位置 + D 盘主目录）会合并成一组，按「**同 agent** + 同项目 + 同日志文件 + 同行号 + 同文本」去重，出处保留 D 盘新位置。
+同一项目的镜像工作区（C 盘旧位置 + D 盘主目录）会合并成一组，按「**同 agent + 同待办ID**」去重（镜像工作区的项目名与相对路径一致，id 天然相同），出处保留 D 盘新位置；同一文件里同文本重复出现的待办也会合并成一条。
 待办 id = 项目|文件|文本（**不含行号、不含 agent**，日志里增删行不会让待办变脸丢排序）：agent 不进 id 是因为来源文件的相对路径
 （`.qoder/…` vs `xxx/.workbuddy/…`）天然不撞，而改 id 公式等于全表重建（云表排序/别名全丢）。
 
@@ -83,7 +90,9 @@ python harvest.py --json 待办.json           # 结构化清单，给不能上�
 python harvest.py --root D:/other-workspace  # 额外扫描 WorkBuddy 风格的根
 ```
 
-默认扫描根（D 盘主项目在最前，与 C 盘镜像去重时保留新位置出处）：`D:\DATA\AI_DATA\LongTermPro\本地工作台构建`、`~/WorkBuddy`、`~`（个人记忆）。
+`python` 被 Microsoft Store 别名占掉（跑起来只弹商店）时改用 `py -3 harvest.py …`。
+
+默认扫描根（D 盘主项目在最前，与 C 盘镜像去重时保留新位置出处）：`D:\DATA\AI_DATA\LongTermPro\本地工作台构建`、`~/WorkBuddy`、`~`（个人记忆），外加 `$HOME`（Windows 上可能与 `~` 不同）。D 盘那条是本机专属事实：换机器后目录不存在会自动跳过，要扫别处用 `--root`。
 
 ## 云表结构（生活工作台·记忆待办，9JwdAJ3DtgQe8g4DhalGev）
 待办ID / 待办内容 / 自动名 / 别名 / **agent** / 信号(select) / 章节 / 日期 / 来源文件 / 行号 / 已完成 / 排序 / 扫描时间 / 示例数据 / 纳入副业。
@@ -114,3 +123,7 @@ python harvest.py --root D:/other-workspace  # 额外扫描 WorkBuddy 风格的�
 - **看板加一列要三处一起动**：云表列（同步脚本补建）+ 行转换（`rowToMemoryTodo`/`memoryTodoToProps`）+ 筛选条与卡片标签；少一处就是「数据在云上但页面看不见」。
 - **`el.hidden` 常常藏不掉东西**：筛选条 `.mt-f` 自带 `display:flex`，会盖掉 UA 的 `[hidden]{display:none}`，必须补 `.mt-f[hidden]{display:none!important}`。判定要真渲染（Playwright `isVisible()`），别读 DOM 属性。
 - **多 agent 别只测「文件扫到了」**：本机 Qoder/QClaw 的记忆文件确实在盘上，但一条待办都没有（那些日志没有待办章节也没有 checkbox）——这是真阴性。验证发现能力要用假 HOME 造样例（改 `harvest.HOME` 后再 `scan()`），别拿「0 条」当通过。
+- **Windows 上 `~` ≠ `$HOME`**：`os.path.expanduser("~")` 取 `%USERPROFILE%`（本机在 C 盘），而 QClaw / OpenClaw 等把记忆写在 `$HOME`（本机在 D 盘）。只扫一个会漏掉另一侧的 agent，`scan_homes()` 两个都要带上。
+- **待办章节里大半是现状记录**：真实日志的 `## 待办` 常写成「X 已废弃；现在是 Y」「已改为方案 B」。只按标题收会把一堆旧结论当待办，必须配合状态词与缩进子条目过滤；但过滤只作用于裸条目，checkbox 永远照收。
+- **去重键要用待办 id**：以前按「文件+行号+文本」，同一文件里同文本出现两次会被算成两条（id 相同，云表里会打架）；按 `(agent, id)` 合并即可，镜像工作区也顺带解决。
+- **WorkBuddy 个人目录不只有记忆**：`user-*/` 下还有 BOOTSTRAP/IDENTITY/SOUL/USER 人格设定，只认 `MEMORY.md` 与 `memory/*.md`，别整目录 `*.md` 全扫。
