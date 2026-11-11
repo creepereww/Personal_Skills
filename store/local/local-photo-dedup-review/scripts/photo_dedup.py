@@ -55,6 +55,8 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
+from functools import lru_cache
+
 from PIL import Image, ImageStat
 
 Image.MAX_IMAGE_PIXELS = None
@@ -86,7 +88,10 @@ def dhash_and_meta(path):
     return bits, std, w0, h0
 
 
+@lru_cache(maxsize=512)
 def rgb_bytes(path):
+    """128x128 归一化结果缓存：粗筛里同一个文件会被多个候选对重复解码，
+    输出阶段还会两两再算一遍，没缓存时大图库会慢好几倍。"""
     try:
         with Image.open(path) as im:
             return im.convert("RGB").resize((N, N), Image.LANCZOS).tobytes()
