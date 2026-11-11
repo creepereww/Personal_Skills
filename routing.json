@@ -39,7 +39,7 @@
     "file-ops": {
       "label": "文件整理",
       "why": "批量文件/照片盘点、查重、归类，偏个人场景",
-      "skills": ["local-file-dedup-organize", "local-photo-dedup-review"]
+      "skills": ["local-file-dedup-organize", "local-photo-dedup-review", "local-phone-export-archive"]
     },
     "media": {
       "label": "视频转录",
