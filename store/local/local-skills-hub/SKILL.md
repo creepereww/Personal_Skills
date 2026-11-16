@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
 description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时；「skills 更新」「同步技能库」「拉远端同步」等更新仓库的意图也归它管，附 qoder 等 agent 的 AGENTS.md 自动触发提示词。挂载按 groups 画像，组内个别技能不要时用 clients.exclude_skills 排除（给职能单一的 agent 减噪）。含授权规则：完善中（v0.x）可直接改并回报，已完善（v1.0+）必须先确认或写 proposals/。
-version: v0.22
+version: v0.23
 ---
 
 # Skills Hub
@@ -247,6 +247,21 @@ pwsh ~/.skills/scripts/install-hook.ps1 -Check  # 只校验在不在位，不改
   「A 机当良性告警放行、B 机 exit 1 硬拦」。要加检查项或放宽口径，改 `audit.ps1` 本身
 - **被拦住时去修 skill，不是加 `--no-verify`**：违规内容会卡住本机后续每一次提交，
   绕过只是把债务推给下一台机器
+
+### 提交前：清掉 Python 测试留下的 `__pycache__`
+
+`audit.ps1` 的「垃圾文件」检查是**扫文件系统，不看 git 状态** —— 就算 `.gitignore` 已经把
+`__pycache__/` 和 `*.pyc` 排除、根本进不了版本库，它也照样报警并让 pre-commit hook 硬拦。
+所以仓库里带 Python 脚本的 skill，跑过测试或 import 之后、`sync.ps1` 或 `git commit` 之前先清：
+
+```bash
+find store -type d -name __pycache__ -prune -exec rm -rf {} +
+```
+
+pyc 是字节码缓存（文件名带 `cpython-313` 这类版本标记），换 Python 版本即失效，
+Python 下次 import 会自己重建，删掉不影响功能；留着才会带本机绝对路径进包、产生无意义 diff。
+**历史上已踩过一次**：`local-bilibili-transcribe` 的 pyc 混进了 init 提交，
+`.gitignore` 那两条规则就是为此加的，别再犯。
 
 ## ⚠️ 清理目录前：别信目录的 mtime
 
