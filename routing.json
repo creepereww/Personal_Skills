@@ -1,6 +1,6 @@
 {
   "_comment": "挂载路由表。clients 是各 agent 的 skills 目录；mode=junction 走目录联接，mode=extraDirs 走原生配置（不建联接）。clients.<name>.view_dir 可选：写了即进入「视图模式」——junction 建到仓库里的视图目录（而非 agent 的 skills 目录），供跑在 junction 够不着处（如 WSL）的 agent 由使用方在 agent 侧建一条软链接入；该 client 自动跳过安装检测（视图是本机资产，与 Windows 侧装没装无关）。",
-  "_version": 6,
+  "_version": 7,
   "_detect_doc": "每个 client 可写 detect 控制「这台机器装没装」的判定。不写 detect -> 默认看 skills 目录的父目录在不在（装了 agent 就会建自己的配置根）。detect=[] -> 不探测、永远视为已装。detect_any=true -> 多路径任一存在即可。装了才挂，没装跳过，除非跑 link.ps1 时加 -Force。",
 
   "_machine_doc": "store/machine/<主机名>/ 下每台机器一份档案，link.ps1 只挂与本机 %COMPUTERNAME% 匹配（大小写不敏感）的那个。host_aliases 把某个主机名指向另一个 machine 目录：过渡期（主机名改了没重启）用完请删；若因主机名含下划线等目录名非法字符而长期需要，则不要删。",
@@ -28,8 +28,13 @@
     },
     "eda": {
       "label": "硬件 / EDA 设计",
-      "why": "立创EDA/EasyEDA 领域；取数走 connector、只读审查走 design-review、建板改板走 board-build、按硬件连接生成 MCU IO 代码走 codegen、元器件采购加购走 bom-purchase；只给做硬件设计的 agent",
-      "skills": ["local-jlceda-design-review", "local-jlceda-board-build", "easyeda-agent-connector", "local-sinocmcu-8bit-codegen", "local-lcsc-bom-purchase"]
+      "why": "立创EDA/EasyEDA 领域：只读审查走 design-review、建板改板走 board-build、元器件采购加购走 bom-purchase；只给做硬件设计的 agent。取数用的 easyeda-agent-connector 已随嵌入式链路移到 embedded 组（2026-11-16，它读的是网表，服务于代码生成）",
+      "skills": ["local-jlceda-design-review", "local-jlceda-board-build", "local-lcsc-bom-purchase"]
+    },
+    "embedded": {
+      "label": "嵌入式编程",
+      "why": "MCU 固件开发（用户 2026-11-16 指定单独成组）：四个 skill 覆盖全链路 —— easyeda-agent-connector（读嘉立创网表）→ local-sinocmcu-datasheets（查寄存器/引脚/电气参数）→ local-sinocmcu-8bit-codegen（网表生成 IO/屏幕驱动代码）→ local-sinocmcu-9959b-fw（改固件工程的通用规则：GBK 安全改写、SDCC 宏与续行、编译验证、asm diff）。原项目级 `Sino_Projects/.opencode/skills/sino-mcus-fw` 已收编为最后一个 skill（去项目化）",
+      "skills": ["easyeda-agent-connector", "local-sinocmcu-datasheets", "local-sinocmcu-8bit-codegen", "local-sinocmcu-9959b-fw"]
     },
     "file-ops": {
       "label": "文件整理",
@@ -95,15 +100,28 @@
       "view_dir": "_active/opencode",
       "mode": "junction",
       "enabled": true,
-      "groups": ["core", "eda"],
-      "_groups_note": "编程向（用户指定 2026-11-05）：只要 core 里的干活方式 + EDA 里的代码生成链路，其余整组不挂（skill-dev 做 skill 时才用、cloud 网盘接入一次性）",
-      "exclude_skills": ["local-skills-hub", "local-memory-map", "local-windows-shell-conventions", "local-jlceda-design-review", "local-jlceda-board-build", "local-lcsc-bom-purchase", "wgc-work1-px"],
-      "_exclude_note": "留下的 4 个：local-script-first、local-plan-first-superpowers（干活方式）、local-sinocmcu-8bit-codegen（按网表生成 MCU 代码）、easyeda-agent-connector（读网表要用）。排掉的：仓库维护规则/资产地图/Windows 路径约定（WSL 里是噪音）、画板布线/硬件审查/BOM 采购（不是写代码）、本机 machine 档（Windows 侧事实）",
+      "groups": ["core", "eda", "embedded"],
+      "_groups_note": "编程向（用户 2026-11-05 指定，2026-11-16 加 embedded）：core 的干活方式 + EDA 取数 + 嵌入式代码生成，其余整组不挂（skill-dev 做 skill 时才用、cloud 网盘接入一次性）",
+      "exclude_skills": ["local-skills-hub", "local-memory-map", "local-windows-shell-conventions", "local-memory-todo-harvest", "local-jlceda-design-review", "local-jlceda-board-build", "local-lcsc-bom-purchase", "wgc-work1-px"],
+      "_exclude_note": "留下的 4 个：local-script-first、local-plan-first-superpowers（干活方式）、local-sinocmcu-8bit-codegen（embedded 组，按网表生成 MCU 代码）、easyeda-agent-connector（读网表要用）。排掉的：仓库维护规则/资产地图/Windows 路径约定（WSL 里是噪音）、local-memory-todo-harvest（记忆待办归集，2026-11-16 用户要求取消）、画板布线/硬件审查/BOM 采购（不是写代码）、本机 machine 档（Windows 侧事实）",
       "detect": ["%USERPROFILE%\\.config\\opencode", "%APPDATA%\\npm\\node_modules\\opencode-ai", "%USERPROFILE%\\AppData\\Local\\Programs\\opencode"],
       "detect_any": true,
       "_detect_note": "skills 目录原生不存在（父目录判据会误判），故显式给出配置目录/npm 包/winget 三种安装位置",
       "_view_note": "视图模式：junction 由 link.ps1 建在 _active/opencode/（只建画像内那 4 个）；WSL 侧由 opencode.jsonc 的 skills 数组直指该视图（v2 起支持绝对路径，见 local-memory-map 表①），v1 时代则是 wsl2win oc-skills 软链；Windows 侧装没装 opencode 都建视图，detect 不再作为跳过条件",
       "note": "★ 本机实际装在 WSL 里（不是 Windows 原生），职责是编程（嵌入式为主）—— 所以画像只留编程必需，别再加「全组」，噪音会挤占上下文。下面这些 Windows 路径一条都不会命中（视图模式照样建，不报 NOTFOUND）。挂载流程：link.ps1 维护 _active/opencode/ 视图 → WSL 里 opencode.jsonc 的 skills 指过去，详见 store/machine/wgc-work1-px。单文件可执行程序、内置 skill 编译在里面不可编辑；自建 skill 另认项目 .opencode/skills/、兼容位 .claude/skills/ + .agents/skills/ —— 详见 local-memory-map 表①"
+    },
+    "trae-plugin": {
+      "dir": "%USERPROFILE%\\.trae\\skills",
+      "view_dir": "_active/trae",
+      "mode": "junction",
+      "enabled": true,
+      "groups": ["core", "eda", "embedded"],
+      "_groups_note": "与 opencode 完全同画像（用户 2026-11-16 要求两边 skills 同步）：core 干活方式 + EDA 取数 + 嵌入式代码生成。改一边必须同步改另一边",
+      "exclude_skills": ["local-skills-hub", "local-memory-map", "local-windows-shell-conventions", "local-memory-todo-harvest", "local-jlceda-design-review", "local-jlceda-board-build", "local-lcsc-bom-purchase", "wgc-work1-px"],
+      "_exclude_note": "必须与 opencode 的 exclude_skills 逐项一致，否则两边内容立刻不同步",
+      "detect": [],
+      "_detect_note": "视图模式本就不做安装检测；且 Trae 插件没有可探测的固定全局配置根（它跑在 VS Code 里）",
+      "note": "VS Code 的 Trae 插件：工具权限被圈在工作目录内，skills 只认项目级 <项目>/.trae/skills/（用户级 Access denied，详见 local-memory-map「Trae 插件实例」节）。上面的 dir 只是全局位占位（本机 ~/.trae 不存在，不会接线）；真正接入靠给每个项目建一条 junction：pwsh scripts/link-trae-project.ps1 -Project <项目路径>"
     },
     "doubao": {
       "dir": "%USERPROFILE%\\DoubaoWork\\skills",
@@ -146,7 +164,7 @@
   },
 
   "defaults": {
-    "clients": ["workbuddy", "zcode", "opencode", "doubao", "qoder", "qoder-cn"],
+    "clients": ["workbuddy", "zcode", "opencode", "trae-plugin", "doubao", "qoder", "qoder-cn"],
     "comment": "【仅兜底】未归入任何 groups 组的技能挂给这些 client。已归组的技能只认各自 client 的 groups 画像，不看这里；machine 档按主机名单独处理。"
   },
 
