@@ -55,6 +55,7 @@ version: v0.16
 | Codex CLI | ✅ | `C:/Users/cgw06/.codex/`（`memories_1.sqlite` 等） |
 | MarsCode | ✅ | `C:/Users/cgw06/.marscode/`（预置 `builtin_skills`） |
 | Trae CN | ✅ | `C:/Users/cgw06/.trae-cn/`（预置 `builtin/global/skills`） |
+| Trae（国际版） | ✅ | `C:/Users/cgw06/.trae/`（`AGENTS.md`、`chat/`、`skills/`）；`skills` 是我们的 junction |
 
 > 各处目录的详细机制（记忆形式、是否认公共位）见 `local-memory-map`，本表只记"装没装、在哪"。
 
@@ -79,6 +80,7 @@ version: v0.16
 | `~/.codex/skills/` | 自带 `.system/`（imagegen / openai-docs / plugin-creator） |
 | `~/.marscode/builtin_skills` | 豆包 IDE 预置 |
 | `~/.trae-cn/builtin/global/skills` | Trae CN 预置 |
+| `~/.trae/skills` | ✅ 我们的 junction → `_active/trae`（2026-11-16 起；与 `_active/opencode` 同画像） |
 | `D:/.../.qclaw/` | 只见到 `memory/`，**没有 skills 目录** |
 
 **⚠️ opencode：装在 WSL 里，Windows 侧的 junction 挂不到它**
@@ -99,11 +101,12 @@ version: v0.16
 新增/调整 skill 只跑 `link.ps1`，**不用碰 opencode 配置**。也别直链 `store/`：v2 技术上能扫到
 （深度 2），但会把生活类组一起灌进去，破坏画像。
 
-**画像只给编程必需（2026-11-05 用户指定：这台只用来编程）**：`groups: ["core","eda"]` 再排除 7 个 ——
-留下的 4 个是 `local-script-first`、`local-plan-first-superpowers`（干活方式）、
-`local-sinocmcu-8bit-codegen`（按网表生成 MCU 代码）、`easyeda-agent-connector`（读网表要用）；
-排掉的是仓库维护规则 / 资产地图 / Windows 路径约定（WSL 里是噪音）、画板布线 / 硬件审查 / BOM 采购
-（不写代码）、本机 machine 档（Windows 侧事实）。要再加/减就改 `routing.json` 的 `exclude_skills`。
+**画像只给编程必需（2026-11-05 用户指定，2026-11-16 加 embedded 组）**：`groups: ["core","eda","embedded"]`
+再排除 8 个 —— 留下的 4 个是 `local-script-first`、`local-plan-first-superpowers`（干活方式）、
+`local-sinocmcu-8bit-codegen`（embedded 组，按网表生成 MCU 代码）、`easyeda-agent-connector`（读网表要用）；
+排掉的是仓库维护规则 / 资产地图 / Windows 路径约定（WSL 里是噪音）、`local-memory-todo-harvest`
+（记忆待办归集，2026-11-16 用户要求取消挂载）、画板布线 / 硬件审查 / BOM 采购（不写代码）、
+本机 machine 档（Windows 侧事实）。要再加/减就改 `routing.json` 的 `exclude_skills`。
 
 备选（将来退回 v1、或不想改配置时）：WSL 内 `ln -s "$PWD/_active/opencode" ~/.config/opencode/skills`，
 或 `wsl2win oc-skills`（个人设施在 `Personal_Dotfiles` 仓库，不随 skills 仓库走）。两种方式**别同时用**。
@@ -115,6 +118,15 @@ version: v0.16
 - 穿透路径：WSL 配置 → drvfs(`/mnt/c`) → junction → NTFS 真身。**待用户在 WSL 开一次 opencode 验收**
   （WSL 文件在 `\\wsl.localhost\` 下可见、但软链不可见，最终以 opencode 自己的 skill 列表为准）
 - 现状（2026-11-05）：`skills` 配置已写、视图精简为 4 个 junction；等首次在 WSL 内确认 skill 列表
+
+**VS Code 的 Trae 插件（2026-11-16 接入，与 opencode 同一画像）**
+
+- 本机 `C:/Users/cgw06/.trae/` 存在（含 `AGENTS.md`、`chat/`、`skills/`）—— **国际版**，与 `.trae-cn` 并存。
+  注意全局指引的真实文件是 **`AGENTS.md`**，不是官方文档口径表里的 `user_rules`。
+- `link.ps1` 已把 `~/.trae/skills` 接成 junction → `_active/trae`（4 个，与 `_active/opencode` 逐项相同）。
+- 但插件**只认项目级** `<项目>/.trae/skills/`（用户级工具调用报 `Access denied: restricted to the working directory`），
+  所以每个项目要单独接：`pwsh scripts/link-trae-project.ps1 -Project <项目路径>`（`-Remove` 摘、`-DryRun` 预演）。
+- `~/.trae` 这层接线对插件无用（它够不到全局），留着是给 Trae IDE 用的；插件走项目级就好。
 
 ### WSL 里这个 opencode 实例的实况（Skill / Subagent 分工）
 

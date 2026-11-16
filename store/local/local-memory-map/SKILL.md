@@ -1,7 +1,7 @@
 ---
 name: local-memory-map
-description: 各 agent 的记忆、技能、专家、偏好分别存在哪、能不能统一同步。含通用查法（先分类再定位）、WorkBuddy 的三级记忆与技能/专家三层存储（plugins 各子目录职责、实际加载源看 .skill-list-cache.json）、不能用 junction 统一记忆的四条原因、偏好靠 preferences.md 分发的三条通道，以及六类资产（技能/偏好/内置索引/专家/云端记忆/项目记忆）的默认目录，覆盖 Claude Code/Codex/Gemini/ZCode/Qoder/Cursor/Windsurf/Trae/OpenClaw/QClaw/opencode/豆包/WorkBuddy，含跨工具公共位 ~/.agents/skills 与各家优先级。触发：记忆在哪、个性化设置存哪、跨 agent 读记忆、同步记忆、用户偏好放哪、项目记忆怎么找、专家文件在哪、内置技能在哪、skills 默认目录、各 agent 资产位置。机器专属实测（含 opencode 的 Skill/Subagent 实况）见 store/machine/<主机名>/。
-version: v0.15
+description: 各 agent 的记忆、技能、专家、偏好分别存在哪、能不能统一同步。含通用查法（先分类再定位）、WorkBuddy 三级记忆与技能/专家三层存储（plugins 子目录职责、加载源看 .skill-list-cache.json）、不能用 junction 统一记忆的四条原因、偏好靠 preferences.md 分发的三条通道，以及六类资产（技能/偏好/内置索引/专家/云端记忆/项目记忆）的默认目录，覆盖 Claude Code/Codex/Gemini/ZCode/Qoder/Cursor/Windsurf/Trae/OpenClaw/QClaw/opencode/豆包/WorkBuddy，含跨工具公共位 ~/.agents/skills 与各家优先级。触发：记忆在哪、跨 agent 读记忆、同步记忆、用户偏好放哪、项目记忆怎么找、专家文件在哪、内置技能在哪、skills 默认目录、Trae 插件只有项目级、.trae/rules、.trae/skills。机器专属实测（含 opencode 的 Skill/Subagent 实况）见 store/machine/<主机名>/。
+version: v0.16
 ---
 
 # 记忆与各类资产的存放地图
@@ -347,7 +347,7 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 | **Qoder** | `~/.qoder/skills/{name}/SKILL.md`（用户级）；`.qoder/skills/{name}/SKILL.md`（项目级） | ✅ 官方；**同名时用户级覆盖项目级**（官方两处确认 —— 有第三方写成"项目级覆盖"，是错的）；`name` 仅小写字母/数字/连字符、≤64 字符；`description` ≤1024 字符；CN 版目录为 `~/.qoder-cn/`；`/skills` 查看、`/skills reload` 刷新 |
 | **Cursor** | — | 用 Rules，非 skill（`.cursor/rules/`）✅（官方文档目前只讲 Rules，未列 skills 机制） |
 | **Windsurf** | 有 Skills 机制；路径见第三方整理 `.windsurf/skills/`、全局 `~/.codeium/windsurf/skills/`，亦认 `.agents/skills/` | 官方文档已把 Skills 列为一类定制机制，但**未给出路径** ✅（机制）/ ⚠️（路径） |
-| **Trae** | **全局** `~/.trae/skills/`（Windows = `%userprofile%/.trae/skills`）；**项目级** `.trae/skills/` | ✅ 官方（`docs.trae.ai/ide/skills`）；SKILL.md 同开放标准（frontmatter name/description + 正文）；创建方式：对话生成 / 设置面板手动建 / 导入 zip；**旧记「企业版手动解压到 .skills、社区版无 Skills」已被官方推翻** |
+| **Trae** | **全局** `~/.trae/skills/`（Windows = `%userprofile%/.trae/skills`）；**项目级** `.trae/skills/` | ✅ 官方（`docs.trae.ai/ide/skills`）；SKILL.md 同开放标准（frontmatter name/description + 正文）；创建方式：对话生成 / 设置面板手动建 / 导入 zip；**旧记「企业版手动解压到 .skills、社区版无 Skills」已被官方推翻**；**插件实例只认项目级，见 ② 后的专门小节** |
 | **OpenClaw / QClaw** | 共享/managed：`~/.openclaw/skills/`；**工作区 `~/.openclaw/workspace/skills/`（同名冲突时优先级最高）** | ✅ 官方文档；QClaw 实例用 `~/.qclaw/` 前缀（跟 `$HOME` 走）；另可走 `skills.load.extraDirs` 配置 |
 | **OpenCode** | **全局** `~/.config/opencode/skills/`；**项目** `<项目根>/.opencode/skills/`；**项目兼容位** `<项目根>/.claude/skills/`、`<项目根>/.agents/skills/`；**任意目录** —— 在 `opencode.json(c)` 的 `skills` 数组里指定路径 | ⚠️ **实操验证，非官方文档口径**（见上方核对范围）。四个位置都能挂；注意它的全局位是 `~/.config/opencode/` 而非 `~/.opencode/`，跟别家不一样。两个项目兼容位正是跨工具公共约定，与 Claude Code / Codex CLI 通用。「任意目录」适合"技能不在项目内、又不想挂进全局目录"的场景。**装在 WSL 里时，`~/.config/opencode` 落在 WSL 文件系统内** —— Windows 侧的 junction 够不着，得在 **WSL 内部** `ln -s`。**内置 skill 编译在单文件里、改不了**，见表③ |
 | **WorkBuddy** | `~/.workbuddy/skills/`（自建）；插件技能从 `plugins/marketplaces/...` 加载 | 权威清单看 `.skill-list-cache.json` |
@@ -364,10 +364,29 @@ skill 能统一是靠 junction，它恰好满足两个前提：**是目录** + *
 | **Qoder** | `~/.qoder/AGENTS.md`（用户级）；项目级 `<project>/AGENTS.md`、`AGENTS.local.md`、`.qoder/rules/**/*.md`（从工作目录**向上递归，默认到 `.git` 所在层为止**）；用户级 rules `~/.qoder/rules/**/*.md` | ✅ 官方；`context.fileName` 可改默认文件名（默认 `AGENTS.md`）；rules 支持 `paths` frontmatter（gitignore 风格 glob，**无 `paths` 则始终生效**、有则访问匹配文件后才加载）；`AGENTS.md` 支持 `@path` 导入（支持 `~/`、绝对、相对，有深度限制）；`/init` 生成、`/memory` 管理 |
 | **Cursor** | `~/.cursor/rules`（**本机、不同步**）/ Settings 里的 User Rules（**账号云同步**）；项目 `.cursor/rules/`；另有团队规则（dashboard 下发） | `.mdc`/`.md` ✅；优先级 团队 > 项目 > 用户；也读 `AGENTS.md`/`CLAUDE.md`；旧 `.cursorrules` 已弃用 |
 | **Windsurf** | 全局 `~/.codeium/windsurf/memories/global_rules.md`（**6000 字符**、always on）；项目 `.devin/rules/*.md`（**当前首选**），`.windsurf/rules/*.md`（legacy fallback，每文件 12000 字符） | Markdown ✅；产品已演进为 Devin Desktop，`.devin/` 优先于 `.windsurf/` |
-| **Trae** | **全局** `~/.trae/user_rules`（国内版 `~/.trae-cn/user_rules`；Win 走 `%userprofile%`）；**项目** `.trae/rules/` | Markdown ✅（`docs.trae.ai/ide/rules`）；项目规则 4 种生效方式，子目录最多三层嵌套 |
+| **Trae** | **全局** `~/.trae/user_rules`（国内版 `~/.trae-cn/user_rules`；Win 走 `%userprofile%`）；**项目** `.trae/rules/` | Markdown ✅（`docs.trae.ai/ide/rules`）；项目规则 4 种生效方式，子目录最多三层嵌套；**插件实例由 `<trae_rules_context>` 注入项目 rules，见下方小节** |
 | **OpenClaw / QClaw** | **在「工作区」里**，不在配置目录根：`~/.openclaw/workspace/{AGENTS.md, SOUL.md(人设), IDENTITY.md, USER.md, TOOLS.md, MEMORY.md}` | Markdown，会话启动自动读 ✅；SOUL.md 单文件注入上限 20000 字符（总预算 60000） |
 | **WorkBuddy** | `~/.workbuddy/MEMORY.md`（用户级，我们的脚本写） | Markdown，每会话注入 |
 | **豆包 / 豆包工作** | `~/DoubaoWork/AGENTS.md`（**我们的脚本约定，非官方**） | ⚠️ 官方**未公开**任何全局指引文件；官方路径是客户端面板里的技能，**不走 AGENTS.md** —— 这份是否生效未经验证 |
+
+#### Trae 插件实例（VS Code 侧）与 IDE 口径的差别（实测 ⚠️）
+
+表①②是 **Trae IDE 的官方口径**（有全局位）。VS Code 里的 **Trae 插件**是受限运行实例，
+读写被圈在工作目录内，所以**实际能用的只有项目级**：
+
+| 类型 | 插件实例可用 | 官方 IDE 另有、但实例够不到 |
+|---|---|---|
+| **记忆 / 规则** | `项目/.trae/rules/`（已有 `project_rules.md`，会话启动由 `<trae_rules_context>` 自动注入） | 全局 `~/.trae/user_rules`（CN 版 `~/.trae-cn/user_rules`） |
+| **skills** | `项目/.trae/skills/`（该实例当前为空，仅内置 `skill-creator`） | 全局 `~/.trae/skills/` |
+
+- 访问用户级目录（`~/.config/opencode/`、`~/.opencode/`）直接报
+  `Access denied: Edit operations are restricted to the working directory`；项目内也无 `.opencode/**` / `AGENTS.md`。
+- **别推成产品能力结论**：这是该实例的工具链权限限制，不代表 Trae 产品没有全局记忆/技能，只是此实例接触不到、无法验证。
+- 这是**形态差异（IDE vs 插件）**，换台机器装同一插件照样成立，所以留在本 skill；某台机器具体装了什么、
+  `$HOME` 有没有错位，仍看 `store/machine/<主机名>/SKILL.md`。
+- **怎么把仓库技能喂给它**：`link.ps1` 建 `_active/trae` 视图（与 `_active/opencode` 同画像，两边内容天然同步），
+  `~/.trae/skills` 会被自动接成 junction；项目级那条没有固定路径，逐个项目跑
+  `pwsh scripts/link-trae-project.ps1 -Project <项目路径>`。机制详见 `local-skills-hub`「视图模式」。
 
 ### ③ 内置技能 / 专家索引（client-managed cache）
 

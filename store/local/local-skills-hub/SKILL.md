@@ -72,7 +72,19 @@ version: v0.22
 
 client 定义里写 `view_dir` 即进入**视图模式**：junction 不建到 agent 的 skills 目录，而是建到
 仓库里的 `_active/<client>/`，agent 侧由使用方接过去；该 client **自动跳过安装检测**
-（视图是本机资产，与 Windows 侧装没装这个 agent 无关）。目前只有 opencode 用。
+（视图是本机资产，与 Windows 侧装没装这个 agent 无关）。目前 **opencode** 与 **trae-plugin** 用。
+
+**两种「agent 侧接过去」的姿势**：
+
+| 场景 | 接法 |
+|---|---|
+| skills 目录**固定**（WSL 里的 opencode） | agent 侧建一条软链，或让配置直指 `_active/<client>`（见下面 v1/v2 自举） |
+| 路径**随项目变**（VS Code 的 Trae 插件只认项目级 `<项目>/.trae/skills/`） | `pwsh scripts/link-trae-project.ps1 -Project <项目路径>`，每个项目跑一次；`-Remove` 摘掉 |
+
+- 视图模式下 `link.ps1` 仍会顺手把 agent 的**固定** skills 目录接过去（`~/.trae/skills` 就是这么接上的）；
+  项目级没有固定路径，只能逐个项目跑脚本。
+- `trae-plugin` 与 `opencode` 是**同一套画像 + 同一份 exclude_skills** —— 这是「两边内容同步」的实现方式：
+  实体都在 `store/`，两个视图各建 junction 指过去。**改画像必须两边一起改**，否则立刻不同步。
 
 视图的第二个作用是**按画像过滤**（只挂画像所含组），所以即便 opencode 新版能扫深层目录，也别直链
 `store/` —— 会把生活类组一起灌进去。
@@ -104,6 +116,24 @@ cd /mnt/c/Users/<你>/.skills && ln -s "$PWD/_active/opencode" ~/.config/opencod
 - **Windows 原生也装了 opencode**：视图模式下 `link.ps1` 检测到 `~/.config/opencode` 在，会自动把
   `~/.config/opencode/skills` 接成指向视图的 junction —— 原生版与 WSL 版读同一份
 - `wsl2win`（`Personal_Dotfiles` 仓库）是 v1/软链路线的便利工具，v2 配路径的话用不上
+
+### 跨系统 agent（WSL 里的 opencode 等）改仓库 skill
+
+跑在 WSL 的 agent 通过 `/mnt/c/...` + 视图进到仓库，**能改，但姿势要对**：
+
+| 操作 | 视图里能不能做 | 正确做法 |
+|---|---|---|
+| 改已有 skill 的内容 | ✅ 穿透写入实体 | 直接编辑 `_active/<client>/<名>/SKILL.md` 或 `references/*` |
+| 给已有 skill 加文件 | ✅ 同上 | 同上 |
+| **新建 / 删除整个 skill 目录** | ⚠️ **别在视图里做** | 在 `store/local/` 下增删，再跑 `link.ps1` 刷视图 |
+
+- 视图里全是 Windows junction，drvfs 会跟随重解析点 —— 所以改内容**落到 `store/` 实体**，不是改副本（视图里没有副本）。
+- 但在 junction 上 `rm -rf` / `mkdir` 的行为取决于 drvfs 如何处理重解析点（删链接 / 删目标 / 直接失败三者皆有可能），
+  所以增删技能一律回到 `store/local/`。
+- **新增技能后视图不会自动多出 junction** —— 必须在 Windows 侧跑一次 `link.ps1`，否则 agent 读不到新技能。
+- 写入用 LF：`.gitattributes` 对 `*.md`、`*.sh`、`win/` 下的配置都锁了 LF。drvfs 下写的文件权限可能变 777，
+  Windows 侧 git 不记录 unix 权限位，不影响。
+- 改完**新开会话**才生效（skill 清单是会话启动时快照的）。
 
 ## 🚫 修改 skill 的授权规则
 
