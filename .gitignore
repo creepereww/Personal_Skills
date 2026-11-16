@@ -7,6 +7,9 @@ store/cache/
 # 本机联接视图：Windows junction 会被 git 当成普通目录，重复提交内容
 _active/
 
+# 跨系统（WSL/容器/别的机器）往仓库里投递文件的落地目录，内容取出后即清
+_inbox/
+
 # 提案是临时沟通载体，批准后删除，不留痕
 proposals/
 
