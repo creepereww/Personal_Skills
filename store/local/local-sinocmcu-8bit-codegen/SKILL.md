@@ -69,7 +69,7 @@ version: v0.6
 | `LED_PINn` | `LEDn` | out | 0 | — | no | `led` |
 | `PWM_OUT_CTL n`（雾化驱动） | `HEATn_CTL` | out | **1**（上电关断） | — | no | `pwm` |
 | `KEY_MI` / 咪头 | `KEY_MI` | in | 0 | — | **yes** | `in` |
-| `CHG_VCC` / `VBUS` / `USB` | `USB_IN` | in | 0 | **down** | **yes** | `in` |
+| `CHG_VCC` / `VBUS` / `USB` / `CHRG` / `CHGR` | `USB_IN` | in | 0 | **down**（仅预填默认，电学判定优先） | **yes** | `in` |
 | 无网络（悬空） | — | **out** | 0 | — | no | 空 |
 | 其他 | 待确认 | 待确认 | — | — | — | — |
 
@@ -140,8 +140,15 @@ version: v0.6
 |---|---|---|---|
 | 咪头（MIC） | `MI_INTERRUPT` | `MI_INTERRUPT_ENABLE/DISABLE` | 中断使能/禁用 |
 | USB 插线检测 | `USB_INTERRUPT` | `USB_INTERRUPT_ENABLE/DISABLE` | |
-| 加热器在线检测（烟弹） | `HEAT1_ONLINE`（多路用 HEAT2/HEAT3） | `HEAT1_ONLINE_ENABLE/DISABLE` | |
+| 雾化芯电阻在线检测（烟弹） | `R1_ONLINE`（多路用 R2/R3） | `R1_ONLINE_ENABLE/DISABLE` | **11-03 改口**，数据位 `PIN_R1_ONLINE`，中断宏**不带 `PIN_`** |
 | 按键 | `KEY_CHANGE` | `KEY_CHANGE_ENABLE/DISABLE` | **DISABLE 写在 ENABLE 前面**（用户原版式） |
+
+**11-03 用户改口（最终口径，优先于下方原始模板）**：在线检测对象是雾化芯电阻 R1/R2，不叫「加热器」。
+`pins.csv` 填 `func=R1_ONLINE` → 数据位 `#define PIN_R1_ONLINE PxxD`；
+`irq_macro=R1_ONLINE` → 中断 `#define R1_ONLINE_ENABLE/DISABLE PxxKE`，调用点 `R1_ONLINE_ENABLE;`。
+`func` 自动加 `PIN_` 前缀；`irq_macro` 是完整主干、**不自动加 `PIN_`**（要前缀得自己填完整）。
+多路按电阻编号顺延 `R2_ONLINE` / `R3_ONLINE`。下方代码块是用户**最初**给的模板快照，
+保留 `HEAT` 字样仅作版式参考，**命名一律以上表 + 本段为准，别照代码块抄旧名**。
 
 用户给的原始模板（照抄，勿改顺序/注释）：
 
@@ -294,6 +301,10 @@ version: v0.6
     - 同理，"比较器/ADC 做快保护""包络检测"这类架构想法属于**回复内容**，不是 `pins.csv` 判定依据。
     - **`func` 也别按网名自己起**（又踩一次）：网名 `CHG_VCC` 对应的模板名是 `USB_IN`（出 `PIN_USB_IN`），
       预填表里本来就写着 `CHG_VCC / VBUS / USB → USB_IN`，我却改成了 `CHG_VCC`。**模板给的 `func` 一律照用。**
+    - **充电 IC 状态脚也叫 `USB_IN`**（又踩一次）：网名 `CHRG` / `CHGR`（SA4354 等开漏指示脚），
+      `func` 必须是 `USB_IN` → `PIN_USB_IN`，**不是 `PIN_CHRG`**。`pinmap.py` 原来只匹配 `"CHG"`，
+      它不是 `CHRG` 的连续子串 ⇒ 漏预填、我顺手按网名起了名；关键词已补齐。
+      ⚠️ **`pull` 别照抄预填的 `down`**：开漏状态脚板上常无外部上拉，必须人工判成 `up` 才读得到高。
 11. **端口中断（`PxyKE`）是键盘中断 KBI，触发的是电平变化**：
     - 开关型信号（按键、插拔检测）⇒ `irq=yes` 正确；
     - **斩波型信号**（被 PWM 切变的采样点）⇒ 加热期间必须关掉 KBI，否则边沿风暴；

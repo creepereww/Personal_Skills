@@ -134,9 +134,11 @@ def guess(net):
                  role="in", note="咪头输入")
         return g
 
-    if any(k in n for k in ("CHG", "VBUS", "USB")):
+    if any(k in n for k in ("CHG", "CHRG", "CHGR", "VBUS", "USB")):
         # 模板沿革：PIN_USB_IN 配的中断宏是 USB_INTERRUPT_ENABLE（不是 USB_IN_INTERRUPT），
         # 用 irq_macro 显式对齐，别让它自动拼成 "func + _INTERRUPT"。
+        # "CHG" 不是 "CHRG"/"CHGR"（充电 IC 开漏状态脚）的连续子串，必须显式列全，
+        # 否则这类网名漏预填、func 会被按网名自起成 CHRG（2026-11-10 JoinOne 踩过）。
         g.update(func="USB_IN", dir="in", init="0", pull="down", irq="yes",
                  irq_macro="USB_INTERRUPT", role="in", note="USB/VBUS检测")
         return g
