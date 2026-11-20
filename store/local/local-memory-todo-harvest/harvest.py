@@ -207,6 +207,10 @@ def friendly_project(dirname, projdir):
 
 # 待办语义章节标题匹配：标题含关键词即算（兼容「云盘待办清单」「下一步动作」等写法）
 SECTION_KEYWORDS = re.compile(r"(待办|下一步|未完成|TODO|todo)", re.IGNORECASE)
+# 标题里的「名字」：书名号括起来的模块名 / 反引号括起来的代码 —— 这些位置出现的"待办"是产品名不是待办章节。
+# 实测本机 88 个 WorkBuddy 日志、17 个含关键词的标题里，唯一的误报就是
+# `## v80：「记忆待办」→「AI项目管理」…（已发布）` —— 整节发布说明被收成待办。
+_QUOTED_IN_TITLE = re.compile(r"「[^」]*」|『[^』]*』|`[^`]*`")
 # 排除技能自身的元信息（避免回扫自己构建日志造成的自指）
 SKIP_MARKERS = ("memory-todo-harvest", "记忆待办归集", "记忆归集")
 
@@ -324,7 +328,8 @@ def extract_todos_from_file(path, project, relroot, agent="WorkBuddy"):
         hm = re.match(r"^(#{1,6})\s+(.*)$", line)
         if hm:
             title = hm.group(2).strip()
-            if SECTION_KEYWORDS.search(title) and not _is_skip(title):
+            # 关键词要出现在「标题本身」，不能只是引号里的模块名（见 _QUOTED_IN_TITLE）
+            if SECTION_KEYWORDS.search(_QUOTED_IN_TITLE.sub(" ", title)) and not _is_skip(title):
                 in_todo_section = True
                 section_name = title
             else:
@@ -473,12 +478,16 @@ def scan(extra_roots, only_agent=None):
     for t in todos:
         t["done"] = t["source_done"]
         t["auto"] = t["project"]
-    # 去重：同 agent + 同待办ID 只留一条。
-    # 镜像工作区（C 盘旧位置 + D 盘主目录）的项目名与文件相对路径一样，id 天然相同；
-    # 同一文件里同文本重复出现的待办也会合并成一条（以前按行号去重会漏成两条）。
+    # 去重：同 agent + 同项目 + 同日志文件名 + 同文本只留一条。
+    # ① 镜像工作区（C 盘旧位置 2026-xx-xx-xx-xx-xx + D 盘主目录 lifedesk-workbench）合并成一条，
+    #    出处保留先扫到的 D 盘新位置（DEFAULT_ROOTS 把它排在最前）。
+    #    注意：这里不能用 t["id"] 当键——项目名会经 MEMORY.md 标题/别名归一成同一个，但 relpath 里
+    #    那层工作区目录名（时间戳 vs lifedesk-workbench）不一样，id 就不同，镜像会被拆成两条重复行，
+    #    云表长出重复卡片、各带一套排序。
+    # ② 键里不含行号：同一文件里同文本重复出现的待办合并；日志增删行也不会把它当新项。
     seen = {}
     for t in todos:
-        key = (t["agent"], t["id"])
+        key = (t["agent"], t["project"], os.path.basename(t["file"]), t["text"])
         if key not in seen:
             seen[key] = t
     return list(seen.values())
