@@ -1,6 +1,6 @@
 ---
 name: wgc-machine
-description: 家里那台电脑（主机名 WGC_MACHINE，机型 MECHREVO KUANGSHI）的本机环境事实 —— 四个客户端装在 D:\APP_MAGIC、HOME 无错位（= USERPROFILE）、已装 ZCode/opencode/豆包工作/QClaw/Codex/Trae/Qoder 各自在哪、git 用 D:\APP_CLOUD 自装的 2.49、github.com 主站通但 release 下载被限速（走南大镜像或 SSH）、系统代理 26561 可能没开（用前先测）、Everything 在 图吧工具箱 下但 es.exe 已不在（CLI 搜索需重装）、外接 USB 硬盘带 WTG 便携系统（插着可能被固件优先启动）。在那台机器上判断"工具在哪、网络通不通、某个 agent 装没装"时看这里。通用规则见 local-windows-shell-conventions。
+description: 家里那台电脑（主机名 WGC_MACHINE，机型 MECHREVO KUANGSHI）的本机环境事实 —— 四个客户端装在 D:\APP_MAGIC、HOME 无错位（= USERPROFILE）、已装 ZCode/opencode/豆包工作/Codex/Trae/Qoder 各自在哪（QClaw 已停运卸载）、git 用 D:\APP_CLOUD 自装的 2.49、github.com 主站通但 release 下载被限速（走南大镜像或 SSH）、系统代理 26561 可能没开（用前先测）、Everything 在 图吧工具箱 下但 es.exe 已不在（CLI 搜索需重装）、外接 USB 硬盘带 WTG 便携系统（插着可能被固件优先启动）。在那台机器上判断"工具在哪、网络通不通、某个 agent 装没装"时看这里。通用规则见 local-windows-shell-conventions。
 version: v0.6
 ---
 
@@ -65,7 +65,7 @@ version: v0.6
 | ZCode | ✅ | `~/.zcode/`（含 `AGENTS.md`、`cli/`）；技能在公共位 `~/.agents/skills/`（junction） |
 | opencode | ✅ | `~/.config/opencode/`（含 `AGENTS.md` + `skills/`） |
 | 豆包工作 | ✅ | `~/DoubaoWork/`（含 `AGENTS.md` + `skills/`） |
-| QClaw | ✅ | `~/.qclaw/`（有 `skills/`、`memory/`）。`SOUL.md`/`USER.md`/`TOOLS.md` 本就不在配置目录根 —— 它们属于 **agent 工作区**（OpenClaw 默认 `~/.openclaw/workspace/`），本机没见到该工作区 |
+| QClaw | ❌ | **2026-11-22 停运后已彻底卸载**（官方卸载器静默移除 `D:\APP_MAGIC\QClaw` 并连带删了 `~/.qclaw`、`Roaming\QClaw`；更新器缓存进回收站）。残留 `~/.openclaw\`（identity/state 几个小文件）暂留未删，别再当作 QClaw 配置目录用 |
 | Codex CLI | ✅ | `~/.codex/`（含 `memories_1.sqlite`、`skills/.system/`；`skills/` 下无自建） |
 | Trae CN | ✅ | `~/.trae-cn/`（含 `builtin/`、`extensions/`） |
 | **Qoder** | ✅ | `~/.qoder/`（**国际版**；`~/.qoder-cn` 不存在 → 不是 CN 版）。项目落在 `~/Documents/Qoder/<日期>-<hash>/`。详见下节 |
