@@ -1,7 +1,7 @@
 ---
 name: wgc-machine
 description: 家里那台电脑（主机名 WGC_MACHINE，机型 MECHREVO KUANGSHI）的本机环境事实 —— 四个客户端装在 D:\APP_MAGIC、HOME 无错位（= USERPROFILE）、已装 ZCode/opencode/豆包工作/Codex/Trae/Qoder 各自在哪（QClaw 已停运卸载）、git 用 D:\APP_CLOUD 自装的 2.49、github.com 主站通但 release 下载被限速（走南大镜像或 SSH）、系统代理 26561 可能没开（用前先测）、Everything 在 图吧工具箱 下但 es.exe 已不在（CLI 搜索需重装）、外接 USB 硬盘带 WTG 便携系统（插着可能被固件优先启动）。在那台机器上判断"工具在哪、网络通不通、某个 agent 装没装"时看这里。通用规则见 local-windows-shell-conventions。
-version: v0.6
+version: v0.7
 ---
 
 # wgc-machine（家里的电脑）
@@ -179,6 +179,13 @@ D:\APP_HARDWARE\图吧工具箱202502\tools\其他工具\Everything\
   在便携系统里**别拔盘** —— 系统盘就是它，拔了必死机、关机必卡
 - ⚠️ **数据分区是用户整理好的资料**。做 Ventoy/PE 会**格式化整盘** ——
   没用户明确确认前别动这块盘的分区；要玩 Ventoy 另找空闲 U 盘
+
+## 定时同步（Qoder 本地自动化，每周一 09:00）
+
+Qoder Automations 里有一条本地任务「skills 每周同步」：每周一 09:00 跑
+`pwsh C:\Users\cgw06\.skills\scripts\auto-sync.ps1`（提交 → 推送 → 刷新挂载 → 复核）并报告结果。
+停用/改期在 Qoder 的 Automations 里操作，不动仓库；日志在 `C:\Users\cgw06\.skills\store\cache\logs\`。
+⚠️ 本地自动化由 Qoder 应用调度 —— Qoder 未运行时该次可能不执行，以 Automations 里显示的下次运行时间为准。
 
 ## 已排查过、确认不用管的
 

@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
 description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时；「skills 更新」「同步技能库」「拉远端同步」等更新仓库的意图也归它管，附 qoder 等 agent 的 AGENTS.md 自动触发提示词。挂载按 groups 画像，组内个别技能不要时用 clients.exclude_skills 排除（给职能单一的 agent 减噪）。含授权规则：完善中（v0.x）可直接改并回报，已完善（v1.0+）必须先确认或写 proposals/。
-version: v0.23
+version: v0.24
 ---
 
 # Skills Hub
@@ -212,11 +212,23 @@ pwsh ~/.skills/scripts/link.ps1 -DryRun         # 先看会做什么
 pwsh ~/.skills/scripts/link.ps1 -ListClients    # 看各 agent 装没装、判定依据
 pwsh ~/.skills/scripts/sync.ps1                 # 拉取 + 刷新
 pwsh ~/.skills/scripts/sync.ps1 -Commit "msg"   # 提交 + 同步
+pwsh ~/.skills/scripts/auto-sync.ps1            # 无人值守一把过（定时任务入口，见下节）
 pwsh ~/.skills/scripts/sync-preferences.ps1     # 分发偏好（sync.ps1 不含这步）
 pwsh ~/.skills/scripts/audit.ps1                # 合规检查（提交时 hook 自动跑，也可手动）
 pwsh ~/.skills/scripts/install-hook.ps1         # 装配 pre-commit hook（新机器 clone 后必做）
 pwsh ~/.skills/scripts/install-hook.ps1 -Check  # 只校验在不在位，不改盘
 ```
+
+## 无人值守同步（定时任务入口）
+
+`scripts/auto-sync.ps1` 把一次同步做成可无人值守的一把：有改动先 `git add -A` + commit
+（pre-commit hook 跑 audit，被拦即中止）→ `push.ps1`（fetch / 落后 rebase / 重试，网络加固都在它里面，
+别为定时任务另写一份）→ `link.ps1` → 复核 `HEAD == origin/<分支>` 且工作区干净。
+退出码 0/1，日志落 `store/cache/logs/auto-sync-<时间戳>.log`（不进 Git）。
+
+⚠️ 自动提交会把仓库里**所有未忽略的改动**并进一笔 —— 想分开提交的先自己提交；
+遇到 rebase/merge 未完成状态会直接停下等人工。各机用哪种调度器、周几触发是机器事实，
+记在 `store/machine/<主机名>/`，本文件不写。
 
 ## registry.json 只记跨机器一样的事
 
