@@ -10,6 +10,7 @@
 #   pwsh ~/.skills/scripts/push.ps1 -NoRebase       落后时只报告、不 rebase（想手工处理时用）
 #   pwsh ~/.skills/scripts/push.ps1 -KeepProxy      保留环境里的 http(s)_proxy（默认自动绕开 127.0.0.1 的沙箱代理）
 #   pwsh ~/.skills/scripts/push.ps1 -Branch dev -Remote origin
+#   pwsh ~/.skills/scripts/push.ps1 -Repo ~/.dotfiles     同步另一个仓库（默认同步本仓库）
 #   pwsh ~/.skills/scripts/push.ps1 -Log out.txt    额外把结果落盘（宿主工具里 stdout 会丢时用）
 #
 # 它一次做掉六件容易踩坑的事：
@@ -33,6 +34,7 @@
 param(
     [string]$Branch = "master",
     [string]$Remote = "origin",
+    [string]$Repo = "",
     [int]$MaxTry = 6,
     [switch]$DryRun,
     [switch]$NoRebase,
@@ -43,7 +45,7 @@ param(
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "_common.ps1")
 
-$root  = Split-Path -Parent $PSScriptRoot
+$root  = if ($Repo) { (Resolve-Path -LiteralPath $Repo).ProviderPath } else { Split-Path -Parent $PSScriptRoot }
 $git   = Get-GitExe
 $track = "$Remote/$Branch"
 $out   = @()
