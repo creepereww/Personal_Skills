@@ -67,6 +67,17 @@ Say "仓库  ：$root"
 
 if (-not (Test-Path (Join-Path $root ".git"))) { Say "FAIL 不是 git 仓库：$root"; Finish 1 }
 
+# hook 自检：.git/hooks/ 不进版本库，新机器 clone 后默认没有 —— 缺了 audit 就不会在提交前跑
+$hookCheck = (& $pwshExe -NoProfile -File (Join-Path $PSScriptRoot "install-hook.ps1") -Check 2>&1 | Out-String).Trim()
+if ($hookCheck -match "FOREIGN") {
+    Say "WARN  pre-commit hook 已存在但不是标准版（可能是自定义的），没动它：$hookCheck"
+} elseif ($hookCheck -notmatch "OK") {
+    Say "HOOK  缺失或过时（$hookCheck）—— 自动装配："
+    SayLines ((& $pwshExe -NoProfile -File (Join-Path $PSScriptRoot "install-hook.ps1") 2>&1 | Out-String))
+} else {
+    Say "HOOK  $hookCheck"
+}
+
 # rebase / merge 进行中：自动提交会把半成品当正常改动，必须人工处理
 foreach ($marker in @(".git\rebase-merge", ".git\rebase-apply", ".git\MERGE_HEAD")) {
     if (Test-Path (Join-Path $root $marker)) {

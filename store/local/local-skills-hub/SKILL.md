@@ -1,7 +1,7 @@
 ---
 name: local-skills-hub
 description: 本机全局 skill 仓库（~/.skills）的使用规则与强制约束。动手前必读 —— 涉及新增/修改/删除任何 skill、用 skill-creator 创建 skill、排查 skill 没生效、把 skill 推送到其他电脑时；「skills 更新」「同步技能库」「拉远端同步」等更新仓库的意图也归它管，附 qoder 等 agent 的 AGENTS.md 自动触发提示词。挂载按 groups 画像，组内个别技能不要时用 clients.exclude_skills 排除（给职能单一的 agent 减噪）。含授权规则：完善中（v0.x）可直接改并回报，已完善（v1.0+）必须先确认或写 proposals/。
-version: v0.25
+version: v0.26
 ---
 
 # Skills Hub
@@ -235,6 +235,10 @@ pwsh ~/.skills/scripts/install-hook.ps1 -Check  # 只校验在不在位，不改
 只提交**已跟踪**文件的改动（该仓库 README 禁用 `git add -A`，未跟踪文件只报告不入库）→
 `push.ps1 -Repo <路径>` → 刷 OneDrive 明文包（`win\install.ps1 -Export`；包里有多余文件时跳过导出并报警，
 避免误删）→ 复核。`push.ps1` 的 `-Repo` 参数就是为此加的，网络加固只有一份。
+
+脚本自身跟着仓库走：新机器 clone 完直接 `pwsh scripts/auto-sync.ps1` 就能跑（hook 缺失会自动装）；
+`dotfiles-sync.ps1` 还要求本机有 `~/.dotfiles` 克隆。**Qoder 自动化任务、日志、SSH 密钥都不在仓库里**，
+新机器要重新建任务。
 
 ## registry.json 只记跨机器一样的事
 
