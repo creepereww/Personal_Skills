@@ -1,7 +1,7 @@
 ---
 name: wgc-machine
 description: 家里那台电脑（主机名 WGC_MACHINE，机型 MECHREVO KUANGSHI）的本机环境事实 —— 四个客户端装在 D:\APP_MAGIC、HOME 无错位（= USERPROFILE）、已装 ZCode/opencode/豆包工作/Codex/Trae/Qoder 各自在哪（QClaw 已停运卸载）、git 用 D:\APP_CLOUD 自装的 2.49、github.com 主站通但 release 下载被限速（走南大镜像或 SSH）、系统代理 26561 可能没开（用前先测）、Everything 在 图吧工具箱 下但 es.exe 已不在（CLI 搜索需重装）、外接 USB 硬盘带 WTG 便携系统（插着可能被固件优先启动）。在那台机器上判断"工具在哪、网络通不通、某个 agent 装没装"时看这里。通用规则见 local-windows-shell-conventions。
-version: v0.8
+version: v0.9
 ---
 
 # wgc-machine（家里的电脑）
@@ -194,6 +194,21 @@ dotfiles 相关：本机原先只有 OneDrive 明文包、没有 git 克隆；�
 `win\install.ps1 -Export` 维护，别直接改包里的文件。
 
 ⚠️ 本地自动化由 Qoder 应用调度 —— Qoder 未运行时该次可能不执行，以 Automations 里显示的下次运行时间为准。
+
+## Obsidian（配置归 dotfiles，CONFIG_ 已退役）
+
+- vault：`D:\DATA\NOTE\OBSIDIAN\杂乱无章`。**笔记不进任何 git**，靠插件 `remotely-save` 同步。
+- `.obsidian` 配置的唯一源是 `C:\Users\cgw06\.dotfiles\win\obsidian\`（根级 JSON + 3 个插件 data.json），
+  由 `win\install.ps1` 铺到 vault；每周 `dotfiles-sync.ps1` 把仓库变更推到 GitHub 并刷新 OneDrive 包。
+- **主题 / 字号是机器本地项**：本机启用 Blue Topaz、字号 20；仓库里是 Minimal、19（给新机器的默认）。
+  两套主题的参数（`minimal-style@@*` 与 `blue-topaz-theme@@*`）都在同一份 style-settings 里，可随时切；
+  两边主题不同属正常，不要为了"统一"互相覆盖。
+- 不同步的界面状态：`workspace.json`（当前打开的文件/分栏）、`workspaces.json`（保存的布局）、
+  `command-palette.json`（核心插件状态）。`install.ps1` 的文件清单里已移除。
+- 插件清单是两边并集（17 个），核心插件启用状态取并集（27/31）。
+- 原独立仓库 `CONFIG_.obsidian` **已退役**：本地 `D:\...\.obsidian\.git` 已移出（暂存
+  `%TEMP%\config_obsidian_git_retired_*`，确认无误可删）；GitHub 远端保留作存档，
+  `main` 与 `master` 都停在最后提交 `7b16ebd`。以后改 Obsidian 配置只走 dotfiles，别再拉这个仓库。
 
 ## 已排查过、确认不用管的
 
